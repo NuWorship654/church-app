@@ -11,44 +11,108 @@ export default function SongViewer({ song }) {
     : '?'
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-xl font-bold text-gray-800 mb-1">{song.title}</h2>
-      <p className="text-gray-500 text-sm mb-4">Tono original: {song.original_key || 'N/A'}</p>
+    <div style={{
+      background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
+      borderRadius: '12px', padding: '24px', height: '100%',
+      animation: 'fadeInUp 0.3s ease forwards'
+    }}>
+      {/* Título */}
+      <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '18px', color: '#e2e8f0', margin: '0 0 4px' }}>
+        {song.title}
+      </h2>
+      <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 20px' }}>
+        Tono original: <span style={{ color: '#a78bfa' }}>{song.original_key || 'N/A'}</span>
+      </p>
 
-      <div className="flex items-center gap-4 mb-6 p-3 bg-gray-50 rounded-lg">
-        <button onClick={() => setSemitones(s => s - 1)} className="w-9 h-9 bg-blue-600 text-white rounded-full text-xl font-bold flex items-center justify-center">−</button>
-        <div className="text-center flex-1">
-          <div className="text-2xl font-bold text-blue-700">{currentKey}</div>
-          <div className="text-xs text-gray-500">
-            {semitones === 0 ? 'Original' : `${semitones > 0 ? '+' : ''}${semitones} semitonos`}
+      {/* Transpositor */}
+      <div style={{
+        background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.2)',
+        borderRadius: '10px', padding: '16px', marginBottom: '20px',
+        display: 'flex', alignItems: 'center', gap: '16px'
+      }}>
+        <button onClick={() => setSemitones(s => s - 1)} style={{
+          width: '36px', height: '36px', borderRadius: '50%',
+          background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
+          color: '#00d4ff', fontSize: '20px', cursor: 'pointer', transition: 'all 0.2s',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,212,255,0.25)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,212,255,0.1)'}
+        >−</button>
+
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <div style={{
+            fontFamily: 'Orbitron, sans-serif', fontSize: '28px', fontWeight: '900',
+            color: '#00d4ff', textShadow: '0 0 20px rgba(0,212,255,0.5)'
+          }}>{currentKey}</div>
+          <div style={{ color: '#64748b', fontSize: '11px', letterSpacing: '1px' }}>
+            {semitones === 0 ? 'TONO ORIGINAL' : `${semitones > 0 ? '+' : ''}${semitones} SEMITONOS`}
           </div>
         </div>
-        <button onClick={() => setSemitones(s => s + 1)} className="w-9 h-9 bg-blue-600 text-white rounded-full text-xl font-bold flex items-center justify-center">+</button>
-        <button onClick={() => setSemitones(0)} className="px-3 py-1 bg-gray-200 rounded text-sm">↺</button>
+
+        <button onClick={() => setSemitones(s => s + 1)} style={{
+          width: '36px', height: '36px', borderRadius: '50%',
+          background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
+          color: '#00d4ff', fontSize: '20px', cursor: 'pointer', transition: 'all 0.2s',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,212,255,0.25)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,212,255,0.1)'}
+        >+</button>
+
+        <button onClick={() => setSemitones(0)} style={{
+          padding: '6px 12px', borderRadius: '6px',
+          background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)',
+          color: '#a78bfa', fontSize: '12px', cursor: 'pointer', letterSpacing: '1px'
+        }}>↺ RESET</button>
       </div>
 
+      {/* Acordes */}
       {song.chords && (
-        <div className="mb-4">
-          <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Acordes</p>
-          <pre className="whitespace-pre-wrap font-mono text-sm leading-7 text-gray-700">
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ color: '#00d4ff', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 8px' }}>
+            ◆ Acordes
+          </p>
+          <pre style={{
+            background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '16px',
+            fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.8',
+            color: '#e2e8f0', whiteSpace: 'pre-wrap', margin: 0,
+            border: '1px solid rgba(124,58,237,0.2)', maxHeight: '200px', overflowY: 'auto'
+          }}>
             {transposeText(song.chords, semitones)}
           </pre>
         </div>
       )}
 
+      {/* Letra */}
       {song.lyrics && (
-        <div className="mb-4">
-          <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Letra</p>
-          <pre className="whitespace-pre-wrap text-sm leading-7 text-gray-700">
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ color: '#7c3aed', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 8px' }}>
+            ◆ Letra
+          </p>
+          <pre style={{
+            background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '16px',
+            fontSize: '14px', lineHeight: '1.8', color: '#cbd5e1',
+            whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'Rajdhani, sans-serif',
+            maxHeight: '200px', overflowY: 'auto'
+          }}>
             {song.lyrics}
           </pre>
         </div>
       )}
 
+      {/* YouTube */}
       {song.youtube_url && (
-        <a href={song.youtube_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-red-600 hover:underline text-sm mt-2">
-          ▶ Ver en YouTube
-        </a>
+        <a href={song.youtube_url} target="_blank" rel="noopener noreferrer" style={{
+          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          padding: '8px 16px', borderRadius: '8px',
+          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+          color: '#f87171', textDecoration: 'none', fontSize: '13px',
+          fontWeight: '600', letterSpacing: '1px', transition: 'all 0.2s'
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+        >▶ VER EN YOUTUBE</a>
       )}
     </div>
   )

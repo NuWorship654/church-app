@@ -9,16 +9,13 @@ export default function Services() {
   const [services, setServices] = useState([])
   const [selected, setSelected] = useState(null)
   const [showForm, setShowForm] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [editing, setEditing]   = useState(null)
+  const [loading, setLoading]   = useState(true)
   const { canEdit, isPastor } = useAuth()
 
   const fetchServices = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('services')
-      .select('*')
-      .order('date', { ascending: true })
+    const { data } = await supabase.from('services').select('*').order('date', { ascending: true })
     setServices(data || [])
     setLoading(false)
   }
@@ -32,88 +29,113 @@ export default function Services() {
     if (selected?.id === id) setSelected(null)
   }
 
+  const upcoming = services.filter(s => dayjs(s.date).isAfter(dayjs().subtract(1, 'day')))
+  const past     = services.filter(s => dayjs(s.date).isBefore(dayjs().subtract(1, 'day')))
+
   return (
-    <div className="py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">📅 Servicios</h1>
+    <div style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '8px', height: '40px', borderRadius: '4px', background: 'linear-gradient(180deg, #06ffa5, #00d4ff)' }} />
+          <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '22px', fontWeight: '700', color: '#e2e8f0', margin: 0 }}>
+            SERVICIOS
+          </h1>
+        </div>
         {canEdit && (
-          <button
-            onClick={() => { setEditing(null); setShowForm(true) }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition"
-          >
-            + Nuevo servicio
+          <button className="btn-primary" onClick={() => { setEditing(null); setShowForm(true) }}>
+            + NUEVO
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-3">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '20px' }}>
+        {/* Lista */}
+        <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
           {loading ? (
-            <p className="text-gray-500">Cargando...</p>
+            <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>Cargando...</div>
           ) : services.length === 0 ? (
-            <p className="text-gray-500">No hay servicios aún.</p>
+            <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>No hay servicios aún</div>
           ) : (
-            services.map(service => (
-              <div
-                key={service.id}
-                onClick={() => setSelected(service)}
-                className={`p-4 rounded-xl border cursor-pointer transition ${
-                  selected?.id === service.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 bg-white hover:border-blue-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-gray-800">{service.title}</p>
-                    <p className="text-sm text-gray-500">
-                      {dayjs(service.date).format('DD/MM/YYYY HH:mm')}
-                    </p>
-                    {service.location && (
-                      <p className="text-sm text-gray-400">📍 {service.location}</p>
-                    )}
-                  </div>
-                  {canEdit && (
-                    <div className="flex gap-2" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={() => { setEditing(service); setShowForm(true) }}
-                        className="text-blue-600 hover:underline text-sm"
-                      >Editar</button>
-                      <button
-                        onClick={() => handleDelete(service.id)}
-                        className="text-red-500 hover:underline text-sm"
-                      >Eliminar</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))
+            <>
+              {upcoming.length > 0 && (
+                <>
+                  <p style={{ color: '#06ffa5', fontSize: '11px', letterSpacing: '2px', margin: '0 0 10px', textTransform: 'uppercase' }}>◆ Próximos</p>
+                  {upcoming.map((service, i) => (
+                    <ServiceCard key={service.id} service={service} selected={selected} onSelect={setSelected}
+                      canEdit={canEdit} onEdit={() => { setEditing(service); setShowForm(true) }}
+                      onDelete={() => handleDelete(service.id)} index={i} />
+                  ))}
+                </>
+              )}
+              {past.length > 0 && (
+                <>
+                  <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', margin: '16px 0 10px', textTransform: 'uppercase' }}>◆ Anteriores</p>
+                  {past.map((service, i) => (
+                    <ServiceCard key={service.id} service={service} selected={selected} onSelect={setSelected}
+                      canEdit={canEdit} onEdit={() => { setEditing(service); setShowForm(true) }}
+                      onDelete={() => handleDelete(service.id)} index={i} past />
+                  ))}
+                </>
+              )}
+            </>
           )}
         </div>
 
+        {/* Detalle */}
         <div>
           {selected ? (
-            <ServiceDetail
-              service={selected}
-              canEdit={canEdit}
-              isPastor={isPastor}
-              onRefresh={fetchServices}
-            />
+            <ServiceDetail service={selected} canEdit={canEdit} isPastor={isPastor} onRefresh={fetchServices} />
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400">
-              Selecciona un servicio para ver los detalles
+            <div style={{
+              background: 'rgba(13,27,42,0.5)', border: '1px dashed rgba(0,212,255,0.2)',
+              borderRadius: '12px', padding: '60px 20px', textAlign: 'center', color: '#64748b'
+            }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.3 }}>📅</div>
+              <p style={{ margin: 0, fontSize: '14px' }}>Selecciona un servicio para ver los detalles</p>
             </div>
           )}
         </div>
       </div>
 
       {showForm && (
-        <ServiceForm
-          service={editing}
-          onClose={() => setShowForm(false)}
-          onSaved={() => { fetchServices(); setShowForm(false) }}
-        />
+        <ServiceForm service={editing} onClose={() => setShowForm(false)}
+          onSaved={() => { fetchServices(); setShowForm(false) }} />
       )}
+    </div>
+  )
+}
+
+function ServiceCard({ service, selected, onSelect, canEdit, onEdit, onDelete, index, past }) {
+  const isSelected = selected?.id === service.id
+  return (
+    <div onClick={() => onSelect(service)} style={{
+      background: isSelected ? 'rgba(0,212,255,0.08)' : past ? 'rgba(13,27,42,0.4)' : 'rgba(13,27,42,0.8)',
+      border: `1px solid ${isSelected ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.1)'}`,
+      borderRadius: '10px', padding: '14px 16px', cursor: 'pointer',
+      transition: 'all 0.2s ease', marginBottom: '8px', opacity: past ? 0.6 : 1,
+      animation: `slideIn 0.3s ease ${index * 0.05}s forwards`
+    }}
+    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.3)' }}
+    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.1)' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <p style={{ margin: '0 0 4px', fontWeight: '600', color: past ? '#94a3b8' : '#e2e8f0', fontSize: '15px' }}>
+            {service.title}
+          </p>
+          <p style={{ margin: '0 0 2px', color: '#00d4ff', fontSize: '12px' }}>
+            {dayjs(service.date).format('DD/MM/YYYY · HH:mm')}
+          </p>
+          {service.location && <p style={{ margin: 0, color: '#64748b', fontSize: '12px' }}>📍 {service.location}</p>}
+        </div>
+        {canEdit && (
+          <div style={{ display: 'flex', gap: '6px' }} onClick={e => e.stopPropagation()}>
+            <button onClick={onEdit} style={{ background: 'none', border: 'none', color: '#00d4ff', cursor: 'pointer', fontSize: '14px', padding: '4px 8px' }}>✎</button>
+            <button onClick={onDelete} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '14px', padding: '4px 8px' }}>✕</button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

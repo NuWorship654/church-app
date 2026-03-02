@@ -5,12 +5,12 @@ import SongViewer from '../components/Songs/SongViewer'
 import SongForm from '../components/Songs/SongForm'
 
 export default function Songs() {
-  const [songs, setSongs]         = useState([])
-  const [selected, setSelected]   = useState(null)
-  const [showForm, setShowForm]   = useState(false)
-  const [editing, setEditing]     = useState(null)
-  const [loading, setLoading]     = useState(true)
-  const [search, setSearch]       = useState('')
+  const [songs, setSongs]       = useState([])
+  const [selected, setSelected] = useState(null)
+  const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing]   = useState(null)
+  const [loading, setLoading]   = useState(true)
+  const [search, setSearch]     = useState('')
   const { canEdit } = useAuth()
 
   const fetchSongs = async () => {
@@ -25,7 +25,7 @@ export default function Songs() {
   const handleDelete = async (id) => {
     if (!confirm('¿Eliminar esta canción?')) return
     await supabase.from('songs').delete().eq('id', id)
-    setSongs(songs.filter(s => s.id !== id))
+    setSongs(prev => prev.filter(s => s.id !== id))
     if (selected?.id === id) setSelected(null)
   }
 
@@ -34,65 +34,73 @@ export default function Songs() {
   )
 
   return (
-    <div className="py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">🎵 Canciones</h1>
+    <div style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '8px', height: '40px', borderRadius: '4px', background: 'linear-gradient(180deg, #7c3aed, #00d4ff)' }} />
+          <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '22px', fontWeight: '700', color: '#e2e8f0', margin: 0 }}>
+            CANCIONES
+          </h1>
+        </div>
         {canEdit && (
-          <button
-            onClick={() => { setEditing(null); setShowForm(true) }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition"
-          >
-            + Nueva canción
+          <button className="btn-primary" onClick={() => { setEditing(null); setShowForm(true) }}>
+            + NUEVA
           </button>
         )}
       </div>
 
-      {/* Buscador */}
       <input
         type="text"
-        placeholder="Buscar canción..."
+        placeholder="🔍  Buscar canción..."
         value={search}
         onChange={e => setSearch(e.target.value)}
-        className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="input-field"
+        style={{ marginBottom: '20px' }}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Lista de canciones */}
-        <div className="space-y-2">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
           {loading ? (
-            <p className="text-gray-500">Cargando...</p>
+            <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>Cargando...</div>
           ) : filtered.length === 0 ? (
-            <p className="text-gray-500">No hay canciones aún.</p>
+            <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>
+              {search ? 'Sin resultados' : 'No hay canciones aún'}
+            </div>
           ) : (
-            filtered.map(song => (
+            filtered.map((song, i) => (
               <div
                 key={song.id}
                 onClick={() => setSelected(song)}
-                className={`p-4 rounded-xl border cursor-pointer transition ${
-                  selected?.id === song.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 bg-white hover:border-blue-300'
-                }`}
+                style={{
+                  background: selected?.id === song.id ? 'rgba(0,212,255,0.08)' : 'rgba(13,27,42,0.8)',
+                  border: `1px solid ${selected?.id === song.id ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.1)'}`,
+                  borderRadius: '10px', padding: '14px 16px',
+                  cursor: 'pointer', transition: 'all 0.2s ease',
+                  animation: `slideIn 0.3s ease ${i * 0.05}s forwards`,
+                  opacity: 0
+                }}
+                onMouseEnter={e => { if (selected?.id !== song.id) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.3)' }}
+                onMouseLeave={e => { if (selected?.id !== song.id) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.1)' }}
               >
-                <div className="flex items-center justify-between">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <p className="font-semibold text-gray-800">{song.title}</p>
-                    <p className="text-sm text-gray-500">Tono: {song.original_key || 'N/A'}</p>
+                    <p style={{ margin: '0 0 4px', fontWeight: '600', color: '#e2e8f0', fontSize: '15px' }}>{song.title}</p>
+                    <span style={{
+                      fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
+                      background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)',
+                      color: '#a78bfa', letterSpacing: '1px'
+                    }}>{song.original_key || '?'}</span>
                   </div>
                   {canEdit && (
-                    <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: '8px' }} onClick={e => e.stopPropagation()}>
                       <button
                         onClick={() => { setEditing(song); setShowForm(true) }}
-                        className="text-blue-600 hover:underline text-sm"
-                      >
-                        Editar
-                      </button>
+                        style={{ background: 'none', border: 'none', color: '#00d4ff', cursor: 'pointer', fontSize: '13px', padding: '4px 8px' }}
+                      >✎</button>
                       <button
                         onClick={() => handleDelete(song.id)}
-                        className="text-red-500 hover:underline text-sm"
-                      >
-                        Eliminar
-                      </button>
+                        style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '13px', padding: '4px 8px' }}
+                      >✕</button>
                     </div>
                   )}
                 </div>
@@ -101,19 +109,21 @@ export default function Songs() {
           )}
         </div>
 
-        {/* Visor de canción */}
         <div>
           {selected ? (
             <SongViewer song={selected} />
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400">
-              Selecciona una canción para verla
+            <div style={{
+              background: 'rgba(13,27,42,0.5)', border: '1px dashed rgba(0,212,255,0.2)',
+              borderRadius: '12px', padding: '60px 20px', textAlign: 'center', color: '#64748b'
+            }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.3 }}>♪</div>
+              <p style={{ margin: 0, fontSize: '14px' }}>Selecciona una canción para ver los detalles</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Modal formulario */}
       {showForm && (
         <SongForm
           song={editing}

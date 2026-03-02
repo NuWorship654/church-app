@@ -3,20 +3,13 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 const ROLES = ['admin', 'worship_leader', 'pastor', 'member']
-const ROLE_LABELS = {
-  admin: 'Administrador',
-  worship_leader: 'Líder de Alabanza',
-  pastor: 'Pastor',
-  member: 'Miembro'
-}
+const ROLE_LABELS = { admin: 'Administrador', worship_leader: 'Líder de Alabanza', pastor: 'Pastor', member: 'Miembro' }
+const ROLE_COLORS = { admin: '#7c3aed', worship_leader: '#00d4ff', pastor: '#06ffa5', member: '#f59e0b' }
 
 export default function Users() {
-  const [users, setUsers] = useState([])
+  const [users, setUsers]     = useState([])
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ email: '', password: '', full_name: '', role: 'member' })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [showGuide, setShowGuide] = useState(false)
   const { isAdmin } = useAuth()
 
   const fetchUsers = async () => {
@@ -33,102 +26,113 @@ export default function Users() {
     fetchUsers()
   }
 
-  const handleCreate = async e => {
-    e.preventDefault()
-    setSaving(true)
-    setError('')
-    try {
-      const { data, error: signUpError } = await supabase.auth.admin
-        ? await supabase.functions.invoke('create-user', { body: form })
-        : { error: { message: 'No tienes permisos' } }
-
-      if (signUpError) throw signUpError
-      fetchUsers()
-      setShowForm(false)
-      setForm({ email: '', password: '', full_name: '', role: 'member' })
-    } catch (err) {
-      setError('Para crear usuarios usa el panel de Supabase → Authentication → Add user')
-    }
-    setSaving(false)
-  }
-
   if (!isAdmin) return (
-    <div className="py-6">
-      <p className="text-red-500">No tienes permiso para ver esta página.</p>
+    <div style={{ textAlign: 'center', padding: '60px', color: '#f87171' }}>
+      ⛔ No tienes permiso para ver esta página.
     </div>
   )
 
   return (
-    <div className="py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">👥 Usuarios</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition"
-        >
-          + Nuevo usuario
+    <div style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '8px', height: '40px', borderRadius: '4px', background: 'linear-gradient(180deg, #06ffa5, #7c3aed)' }} />
+          <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '22px', fontWeight: '700', color: '#e2e8f0', margin: 0 }}>
+            USUARIOS
+          </h1>
+        </div>
+        <button className="btn-primary" onClick={() => setShowGuide(!showGuide)}>
+          + NUEVO USUARIO
         </button>
       </div>
 
-      {showForm && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">
-          <h3 className="font-semibold text-gray-800 mb-1">Crear nuevo usuario</h3>
-          <p className="text-sm text-gray-500 mb-4">
-            Para crear usuarios ve a{' '}
-            <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" className="text-blue-600 underline">
-              Supabase Dashboard
-            </a>
-            {' '}→ Authentication → Users → Add user → Create new user (activa Auto Confirm User), luego copia el UUID y ejecuta en SQL Editor:
+      {/* Guía para crear usuarios */}
+      {showGuide && (
+        <div style={{
+          background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)',
+          borderRadius: '12px', padding: '20px', marginBottom: '24px',
+          animation: 'fadeInUp 0.3s ease forwards'
+        }}>
+          <p style={{ color: '#00d4ff', fontSize: '13px', fontWeight: '600', margin: '0 0 12px', letterSpacing: '1px' }}>
+            ◆ CÓMO AGREGAR UN NUEVO MIEMBRO
           </p>
-          <pre className="bg-white rounded-lg p-3 text-xs text-gray-700 overflow-x-auto">
+          <ol style={{ color: '#94a3b8', fontSize: '14px', lineHeight: '2', paddingLeft: '20px', margin: '0 0 12px' }}>
+            <li>Ve a <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" style={{ color: '#00d4ff' }}>Supabase Dashboard</a> → Authentication → Users</li>
+            <li>Clic en <strong style={{ color: '#e2e8f0' }}>Add user → Create new user</strong></li>
+            <li>Escribe el email y contraseña, activa <strong style={{ color: '#e2e8f0' }}>Auto Confirm User</strong></li>
+            <li>Copia el UUID del usuario creado</li>
+            <li>Ve a SQL Editor y ejecuta:</li>
+          </ol>
+          <pre style={{
+            background: 'rgba(0,0,0,0.4)', borderRadius: '8px', padding: '14px',
+            fontSize: '13px', color: '#06ffa5', overflowX: 'auto', margin: 0
+          }}>
 {`INSERT INTO profiles (id, full_name, role)
-VALUES ('UUID-DEL-USUARIO', 'Nombre Completo', 'member');`}
+VALUES ('UUID-AQUI', 'Nombre Completo', 'member');`}
           </pre>
-          <p className="text-xs text-gray-400 mt-2">Roles disponibles: admin, worship_leader, pastor, member</p>
+          <p style={{ color: '#64748b', fontSize: '12px', margin: '10px 0 0' }}>
+            Roles: admin · worship_leader · pastor · member
+          </p>
         </div>
       )}
 
+      {/* Tabla */}
       {loading ? (
-        <p className="text-gray-500">Cargando...</p>
+        <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>Cargando...</div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600">Nombre</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600">Rol</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-600">Cambiar rol</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {users.map(user => (
-                <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-800">{user.full_name}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
-                      user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                      user.role === 'worship_leader' ? 'bg-blue-100 text-blue-700' :
-                      user.role === 'pastor' ? 'bg-green-100 text-green-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {ROLE_LABELS[user.role]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={user.role}
-                      onChange={e => handleRoleChange(user.id, e.target.value)}
-                      className="text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {ROLES.map(r => (
-                        <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style={{
+          background: 'rgba(13,27,42,0.8)', border: '1px solid rgba(0,212,255,0.15)',
+          borderRadius: '12px', overflow: 'hidden'
+        }}>
+          {/* Header tabla */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+            padding: '14px 20px', borderBottom: '1px solid rgba(0,212,255,0.1)',
+            background: 'rgba(0,212,255,0.05)'
+          }}>
+            {['NOMBRE', 'ROL ACTUAL', 'CAMBIAR ROL'].map(h => (
+              <span key={h} style={{ color: '#64748b', fontSize: '11px', letterSpacing: '1.5px', fontWeight: '600' }}>{h}</span>
+            ))}
+          </div>
+
+          {users.map((user, i) => (
+            <div key={user.id} style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+              padding: '16px 20px',
+              borderBottom: i < users.length - 1 ? '1px solid rgba(0,212,255,0.05)' : 'none',
+              transition: 'background 0.2s',
+              animation: `slideIn 0.3s ease ${i * 0.05}s forwards`, opacity: 0
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,212,255,0.03)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{ color: '#e2e8f0', fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center' }}>
+                {user.full_name}
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center' }}>
+                <span style={{
+                  padding: '3px 12px', borderRadius: '20px', fontSize: '11px',
+                  fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase',
+                  background: `${ROLE_COLORS[user.role]}22`,
+                  border: `1px solid ${ROLE_COLORS[user.role]}44`,
+                  color: ROLE_COLORS[user.role]
+                }}>
+                  {ROLE_LABELS[user.role]}
+                </span>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center' }}>
+                <select value={user.role} onChange={e => handleRoleChange(user.id, e.target.value)}
+                  style={{
+                    background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(0,212,255,0.2)',
+                    borderRadius: '6px', padding: '6px 10px', color: '#e2e8f0',
+                    fontFamily: 'Rajdhani, sans-serif', fontSize: '14px', cursor: 'pointer'
+                  }}>
+                  {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                </select>
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

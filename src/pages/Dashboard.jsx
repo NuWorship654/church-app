@@ -1,50 +1,93 @@
 import { useAuth } from '../context/AuthContext'
 import { NavLink } from 'react-router-dom'
 
+const cards = [
+  { to: '/services', icon: '📅', label: 'Servicios', desc: 'Calendario y eventos programados', color: '#00d4ff' },
+  { to: '/songs',    icon: '♪',  label: 'Canciones', desc: 'Letras, acordes y transposición', color: '#7c3aed' },
+]
+const adminCard = { to: '/users', icon: '◈', label: 'Usuarios', desc: 'Gestionar miembros y roles', color: '#06ffa5' }
+
+const roleLabels = {
+  admin: 'Administrador', worship_leader: 'Líder de Alabanza',
+  pastor: 'Pastor', member: 'Miembro'
+}
+const roleColors = {
+  admin: '#7c3aed', worship_leader: '#00d4ff', pastor: '#06ffa5', member: '#f59e0b'
+}
+
 export default function Dashboard() {
-  const { profile, isAdmin, canEdit, isPastor } = useAuth()
+  const { profile, isAdmin } = useAuth()
+  const allCards = isAdmin ? [...cards, adminCard] : cards
 
   return (
-    <div className="py-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-1">
-        Bienvenido, {profile?.full_name} 👋
-      </h1>
-      <p className="text-gray-500 mb-8">
-        Rol: <span className="font-semibold text-blue-600">{profile?.role}</span>
-      </p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <NavLink to="/services"
-          className="bg-white rounded-2xl shadow p-6 hover:shadow-md transition border border-gray-100"
-        >
-          <div className="text-3xl mb-2">📅</div>
-          <h2 className="text-lg font-bold text-gray-800">Servicios</h2>
-          <p className="text-gray-500 text-sm mt-1">
-            Ver calendario y servicios programados
-          </p>
-        </NavLink>
-
-        <NavLink to="/songs"
-          className="bg-white rounded-2xl shadow p-6 hover:shadow-md transition border border-gray-100"
-        >
-          <div className="text-3xl mb-2">🎵</div>
-          <h2 className="text-lg font-bold text-gray-800">Canciones</h2>
-          <p className="text-gray-500 text-sm mt-1">
-            Ver letras, acordes y ajustar tonos
-          </p>
-        </NavLink>
-
-        {isAdmin && (
-          <NavLink to="/users"
-            className="bg-white rounded-2xl shadow p-6 hover:shadow-md transition border border-gray-100"
-          >
-            <div className="text-3xl mb-2">👥</div>
-            <h2 className="text-lg font-bold text-gray-800">Usuarios</h2>
-            <p className="text-gray-500 text-sm mt-1">
-              Gestionar miembros y roles
+    <div style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
+      {/* Header */}
+      <div style={{ marginBottom: '40px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+          <div style={{
+            width: '8px', height: '40px', borderRadius: '4px',
+            background: 'linear-gradient(180deg, #00d4ff, #7c3aed)'
+          }} />
+          <div>
+            <p style={{ color: '#64748b', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', margin: 0 }}>
+              Bienvenido de vuelta
             </p>
+            <h1 style={{
+              fontFamily: 'Orbitron, sans-serif', fontSize: '24px', fontWeight: '700',
+              color: '#e2e8f0', margin: 0
+            }}>{profile?.full_name}</h1>
+          </div>
+        </div>
+        <span style={{
+          display: 'inline-block', padding: '4px 14px', borderRadius: '20px',
+          fontSize: '11px', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase',
+          background: `${roleColors[profile?.role]}22`,
+          border: `1px solid ${roleColors[profile?.role]}44`,
+          color: roleColors[profile?.role]
+        }}>
+          {roleLabels[profile?.role]}
+        </span>
+      </div>
+
+      {/* Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+        {allCards.map((card, i) => (
+          <NavLink key={card.to} to={card.to} style={{ textDecoration: 'none' }}>
+            <div style={{
+              background: 'rgba(13,27,42,0.8)',
+              border: `1px solid ${card.color}33`,
+              borderRadius: '16px', padding: '28px',
+              cursor: 'pointer', transition: 'all 0.3s ease',
+              animation: `fadeInUp 0.5s ease ${i * 0.1}s forwards`,
+              opacity: 0,
+              position: 'relative', overflow: 'hidden'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = `${card.color}88`
+              e.currentTarget.style.transform = 'translateY(-4px)'
+              e.currentTarget.style.boxShadow = `0 8px 30px ${card.color}22`
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = `${card.color}33`
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}>
+              {/* Glow corner */}
+              <div style={{
+                position: 'absolute', top: 0, right: 0,
+                width: '100px', height: '100px',
+                background: `radial-gradient(circle at top right, ${card.color}15, transparent 70%)`,
+                borderRadius: '0 16px 0 0'
+              }} />
+              <div style={{ fontSize: '36px', marginBottom: '16px' }}>{card.icon}</div>
+              <h2 style={{
+                fontFamily: 'Orbitron, sans-serif', fontSize: '16px', fontWeight: '700',
+                color: card.color, margin: '0 0 8px', letterSpacing: '1px'
+              }}>{card.label}</h2>
+              <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>{card.desc}</p>
+            </div>
           </NavLink>
-        )}
+        ))}
       </div>
     </div>
   )
