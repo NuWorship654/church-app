@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
+  const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -11,8 +12,11 @@ export default function Login() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { setError('Credenciales incorrectas'); setLoading(false) }
+    const { error } = await signIn(email, password)
+    if (error) {
+      setError('Credenciales incorrectas')
+      setLoading(false)
+    }
   }
 
   return (
@@ -21,7 +25,6 @@ export default function Login() {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '20px', position: 'relative', overflow: 'hidden'
     }}>
-      {/* Fondo animado */}
       <div style={{
         position: 'absolute', inset: 0, zIndex: 0,
         background: 'radial-gradient(ellipse at 30% 40%, rgba(74,111,165,0.25) 0%, transparent 60%), radial-gradient(ellipse at 70% 60%, rgba(0,212,255,0.08) 0%, transparent 60%)'
@@ -37,21 +40,18 @@ export default function Login() {
         width: '100%', maxWidth: '420px',
         animation: 'fadeInUp 0.6s ease forwards'
       }}>
-        {/* Card */}
         <div style={{
           background: 'rgba(13,27,42,0.95)',
           border: '1px solid rgba(74,111,165,0.4)',
           borderRadius: '20px', padding: '40px 32px',
           boxShadow: '0 0 60px rgba(74,111,165,0.15), 0 0 120px rgba(0,212,255,0.05)'
         }}>
-          {/* Logo e iglesia */}
           <div style={{ textAlign: 'center', marginBottom: '32px' }}>
             <div style={{
               width: '80px', height: '80px', borderRadius: '20px', margin: '0 auto 16px',
               background: 'linear-gradient(135deg, #4a6fa5, #2d4f7c)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 30px rgba(74,111,165,0.4)',
-              overflow: 'hidden'
+              boxShadow: '0 0 30px rgba(74,111,165,0.4)', overflow: 'hidden'
             }}>
               <img src="/logo.png" alt="Logo" style={{ width: '60px', height: '60px', objectFit: 'contain' }} />
             </div>
@@ -63,44 +63,30 @@ export default function Login() {
               fontFamily: 'Orbitron, sans-serif', fontSize: '20px', fontWeight: '900',
               color: '#e2e8f0', margin: '0 0 4px', letterSpacing: '2px'
             }}>WORSHIP</h1>
-            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
-              Un lugar para todos
-            </p>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Un lugar para todos</p>
           </div>
 
-          {/* Divider */}
           <div style={{
             height: '1px', margin: '0 0 28px',
             background: 'linear-gradient(90deg, transparent, rgba(74,111,165,0.5), transparent)'
           }} />
 
-          {/* Form */}
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <label style={{
                 display: 'block', color: '#94a3b8', fontSize: '11px',
                 letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px'
               }}>Correo</label>
-              <input
-                type="email" value={email}
-                onChange={e => setEmail(e.target.value)}
-                required className="input-field"
-                placeholder="tu@correo.com"
-                style={{ borderColor: 'rgba(74,111,165,0.3)' }}
-              />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                required className="input-field" placeholder="tu@correo.com" />
             </div>
             <div>
               <label style={{
                 display: 'block', color: '#94a3b8', fontSize: '11px',
                 letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px'
               }}>Contraseña</label>
-              <input
-                type="password" value={password}
-                onChange={e => setPassword(e.target.value)}
-                required className="input-field"
-                placeholder="••••••••"
-                style={{ borderColor: 'rgba(74,111,165,0.3)' }}
-              />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                required className="input-field" placeholder="••••••••" />
             </div>
 
             {error && (

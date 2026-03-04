@@ -155,18 +155,18 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
   }
 
   const TransposeControls = ({ compact }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: compact ? '6px' : '12px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: compact ? '4px' : '12px' }}>
       <button onClick={() => setSemitones(s => s - 1)} style={{
         ...btnBase,
-        width: compact ? '28px' : '34px', height: compact ? '28px' : '34px',
+        width: compact ? '26px' : '34px', height: compact ? '26px' : '34px',
         borderRadius: '50%', background: 'rgba(0,212,255,0.1)',
         border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff',
-        fontSize: compact ? '14px' : '18px'
+        fontSize: compact ? '13px' : '18px'
       }}>-</button>
-      <div style={{ textAlign: 'center', minWidth: compact ? '44px' : '60px' }}>
+      <div style={{ textAlign: 'center', minWidth: compact ? '36px' : '60px' }}>
         <div style={{
           fontFamily: 'Orbitron, sans-serif',
-          fontSize: compact ? '16px' : '22px',
+          fontSize: compact ? '14px' : '22px',
           fontWeight: '900', color: '#00d4ff',
           textShadow: '0 0 20px rgba(0,212,255,0.5)'
         }}>{currentKey}</div>
@@ -178,36 +178,36 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
       </div>
       <button onClick={() => setSemitones(s => s + 1)} style={{
         ...btnBase,
-        width: compact ? '28px' : '34px', height: compact ? '28px' : '34px',
+        width: compact ? '26px' : '34px', height: compact ? '26px' : '34px',
         borderRadius: '50%', background: 'rgba(0,212,255,0.1)',
         border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff',
-        fontSize: compact ? '14px' : '18px'
+        fontSize: compact ? '13px' : '18px'
       }}>+</button>
       <button onClick={() => setSemitones(0)} style={{
-        ...btnBase, padding: compact ? '3px 7px' : '5px 10px', borderRadius: '6px',
+        ...btnBase, padding: compact ? '2px 6px' : '5px 10px', borderRadius: '6px',
         background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)',
-        color: '#a78bfa', fontSize: '11px'
+        color: '#a78bfa', fontSize: '10px'
       }}>R</button>
     </div>
   )
 
-  // Renderiza toda la letra como flujo normal sin cajas
+  // Letra fluida sin cajas
   const LyricsFull = () => (
-    <div style={{ padding: isMobile ? '16px 12px' : '24px 32px' }}>
+    <div style={{ padding: isMobile ? '16px 14px' : '24px 40px' }}>
       {sections.map((section, i) => (
         <div
           key={i}
           ref={el => { if (section.title) sectionRefs.current[section.title] = el }}
-          style={{ marginBottom: '28px' }}
+          style={{ marginBottom: '32px' }}
         >
           {section.title && (
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
-              padding: '3px 14px', borderRadius: '20px', marginBottom: '10px',
+              padding: '3px 14px', borderRadius: '20px', marginBottom: '12px',
               background: section.color + '18', border: '1px solid ' + section.color + '44'
             }}>
               <span style={{
-                width: '6px', height: '6px', borderRadius: '50%',
+                width: '5px', height: '5px', borderRadius: '50%',
                 background: section.color, display: 'inline-block', flexShrink: 0
               }} />
               <span style={{
@@ -216,31 +216,30 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
               }}>{section.title}</span>
             </div>
           )}
-          <div style={{ paddingLeft: '4px' }}>
-            {section.lines.map((line, j) => {
-              const isChordLine = /^\[.*\]/.test(line) || /^[A-G][#b]?(m|maj|min|dim|aug|sus|add)?[0-9]?(\s+[A-G])?/.test(line.trim()) && line.trim().length < 60
-              return (
-                <div key={j} style={{
-                  fontFamily: isChordLine ? 'monospace' : 'Rajdhani, sans-serif',
-                  fontSize: fontSize + 'px',
-                  lineHeight: '1.9',
-                  color: isChordLine ? '#00d4ff' : '#e2e8f0',
-                  fontWeight: isChordLine ? '600' : '500',
-                  letterSpacing: isChordLine ? '1px' : '0.3px',
-                  minHeight: line.trim() === '' ? '14px' : 'auto',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {line || ' '}
-                </div>
-              )
-            })}
-          </div>
+          {section.lines.map((line, j) => {
+            const isChordLine = /^\[.*\]/.test(line) ||
+              (/^[A-G][#b]?(m|maj|min|dim|aug|sus|add)?[0-9]?(\s)/.test(line.trim()) && line.trim().length < 60)
+            return (
+              <div key={j} style={{
+                fontFamily: isChordLine ? 'monospace' : 'Rajdhani, sans-serif',
+                fontSize: fontSize + 'px',
+                lineHeight: '1.9',
+                color: isChordLine ? '#00d4ff' : '#e2e8f0',
+                fontWeight: isChordLine ? '600' : '500',
+                letterSpacing: isChordLine ? '1px' : '0.3px',
+                minHeight: line.trim() === '' ? '12px' : 'auto',
+                whiteSpace: 'pre-wrap'
+              }}>
+                {line || ' '}
+              </div>
+            )
+          })}
         </div>
       ))}
     </div>
   )
 
-  // MODO PRESENTACION — letra centrada sección por sección
+  // MODO PRESENTACION
   if (presentation) {
     const allSections = sections.filter(s => s.lines.some(l => l.trim()))
     const currentSection = allSections[presSection]
@@ -249,106 +248,97 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
         position: 'fixed', inset: 0, zIndex: 200,
         background: '#000', display: 'flex', flexDirection: 'column'
       }}>
-        {/* Barra top */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '10px 16px', background: 'rgba(255,255,255,0.04)',
           borderBottom: '1px solid rgba(255,255,255,0.08)',
           flexShrink: 0, flexWrap: 'wrap', gap: '8px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontFamily: 'Orbitron, sans-serif', color: '#fff', fontSize: '13px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontFamily: 'Orbitron, sans-serif', color: '#fff', fontSize: '12px' }}>
               {song.title}
             </span>
-            <span style={{
-              fontFamily: 'Orbitron, sans-serif', color: '#00d4ff',
-              fontSize: '13px', fontWeight: '700'
-            }}>{currentKey}</span>
+            <span style={{ fontFamily: 'Orbitron, sans-serif', color: '#00d4ff', fontSize: '12px', fontWeight: '700' }}>
+              {currentKey}
+            </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
             <button onClick={() => setPresFontSize(f => Math.max(16, f - 4))} style={{
               background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff',
-              padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px'
+              padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px'
             }}>A-</button>
-            <span style={{ color: '#64748b', fontSize: '12px', minWidth: '28px', textAlign: 'center' }}>
+            <span style={{ color: '#64748b', fontSize: '12px', minWidth: '24px', textAlign: 'center' }}>
               {presFontSize}
             </span>
             <button onClick={() => setPresFontSize(f => Math.min(80, f + 4))} style={{
               background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff',
-              padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px'
+              padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px'
             }}>A+</button>
-            <button
-              onClick={() => setPresSection(i => Math.max(0, i - 1))}
-              disabled={presSection === 0}
-              style={{
+            <button onClick={() => setPresSection(i => Math.max(0, i - 1))}
+              disabled={presSection === 0} style={{
                 background: 'rgba(255,255,255,0.1)', border: 'none',
                 color: presSection === 0 ? '#333' : '#fff',
-                padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px'
+                padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '15px'
               }}>←</button>
             <span style={{ color: '#555', fontSize: '12px' }}>
-              {presSection + 1} / {allSections.length}
+              {presSection + 1}/{allSections.length}
             </span>
-            <button
-              onClick={() => setPresSection(i => Math.min(allSections.length - 1, i + 1))}
-              disabled={presSection === allSections.length - 1}
-              style={{
+            <button onClick={() => setPresSection(i => Math.min(allSections.length - 1, i + 1))}
+              disabled={presSection === allSections.length - 1} style={{
                 background: 'rgba(255,255,255,0.1)', border: 'none',
                 color: presSection === allSections.length - 1 ? '#333' : '#fff',
-                padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px'
+                padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '15px'
               }}>→</button>
             <button onClick={() => setPresentation(false)} style={{
               background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)',
-              color: '#f87171', padding: '6px 14px', borderRadius: '6px',
+              color: '#f87171', padding: '6px 12px', borderRadius: '6px',
               cursor: 'pointer', fontSize: '12px', fontWeight: '600'
             }}>SALIR</button>
           </div>
         </div>
 
-        {/* Letra centrada */}
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          padding: '24px 20px', overflowY: 'auto'
+          padding: '20px 16px', overflowY: 'auto'
         }}>
           {currentSection && (
             <div style={{ width: '100%', maxWidth: '800px', textAlign: 'center' }}>
               {currentSection.title && (
                 <div style={{
                   display: 'inline-flex', alignItems: 'center', gap: '8px',
-                  padding: '5px 20px', borderRadius: '20px', marginBottom: '28px',
+                  padding: '5px 20px', borderRadius: '20px', marginBottom: '24px',
                   background: currentSection.color + '20',
                   border: '1px solid ' + currentSection.color + '50'
                 }}>
                   <span style={{
-                    color: currentSection.color, fontSize: '13px',
+                    color: currentSection.color, fontSize: '12px',
                     fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase'
                   }}>{currentSection.title}</span>
                 </div>
               )}
-              <div>
-                {currentSection.lines.map((line, i) => {
-                  const isChord = /^\[.*\]/.test(line) || (/^[A-G]/.test(line.trim()) && line.trim().length < 60)
-                  return (
-                    <div key={i} style={{
-                      fontSize: isChord ? (presFontSize * 0.6) + 'px' : presFontSize + 'px',
-                      lineHeight: '1.7',
-                      color: isChord ? '#00d4ff' : '#ffffff',
-                      fontFamily: isChord ? 'monospace' : 'Rajdhani, sans-serif',
-                      fontWeight: isChord ? '600' : '600',
-                      letterSpacing: isChord ? '2px' : '0.5px',
-                      minHeight: line.trim() === '' ? (presFontSize * 0.5) + 'px' : 'auto',
-                      textAlign: 'center'
-                    }}>
-                      {line || ' '}
-                    </div>
-                  )
-                })}
-              </div>
+              {currentSection.lines.map((line, i) => {
+                const isChord = /^\[.*\]/.test(line) ||
+                  (/^[A-G]/.test(line.trim()) && line.trim().length < 60)
+                return (
+                  <div key={i} style={{
+                    fontSize: isChord ? (presFontSize * 0.55) + 'px' : presFontSize + 'px',
+                    lineHeight: '1.7',
+                    color: isChord ? '#00d4ff' : '#ffffff',
+                    fontFamily: isChord ? 'monospace' : 'Rajdhani, sans-serif',
+                    fontWeight: '600',
+                    letterSpacing: isChord ? '2px' : '0.5px',
+                    minHeight: line.trim() === '' ? (presFontSize * 0.5) + 'px' : 'auto',
+                    textAlign: 'center'
+                  }}>
+                    {line || ' '}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
 
-        {/* Tabs de secciones abajo */}
         <div style={{
           display: 'flex', gap: '6px', padding: '10px 16px',
           background: 'rgba(255,255,255,0.03)',
@@ -357,7 +347,7 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
         }}>
           {allSections.map((s, i) => (
             <button key={i} onClick={() => setPresSection(i)} style={{
-              padding: '5px 14px', borderRadius: '20px', cursor: 'pointer', fontSize: '11px',
+              padding: '5px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '11px',
               background: presSection === i ? (s.color + '30') : 'rgba(255,255,255,0.05)',
               border: '1px solid ' + (presSection === i ? s.color : 'rgba(255,255,255,0.1)'),
               color: presSection === i ? s.color : '#555',
@@ -370,7 +360,7 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
     )
   }
 
-  // FULLSCREEN normal
+  // FULLSCREEN
   if (fullscreen) {
     return (
       <div style={{
@@ -378,104 +368,109 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
         display: 'flex', flexDirection: 'column', animation: 'fadeInUp 0.2s ease forwards'
       }}>
 
-        {/* Header */}
+        {/* Header compacto */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 16px', borderBottom: '1px solid rgba(0,212,255,0.15)',
+          padding: '8px 12px', borderBottom: '1px solid rgba(0,212,255,0.15)',
           background: 'rgba(2,8,23,0.98)', backdropFilter: 'blur(10px)',
-          flexShrink: 0, flexWrap: 'wrap', gap: '8px'
+          flexShrink: 0, gap: '6px', flexWrap: 'wrap'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Titulo + fav */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
             <button onClick={toggleFav} style={{
-              background: 'none', border: 'none', fontSize: '18px',
-              cursor: 'pointer', color: isFav ? '#f59e0b' : '#475569'
+              background: 'none', border: 'none', fontSize: '16px',
+              cursor: 'pointer', color: isFav ? '#f59e0b' : '#475569', flexShrink: 0
             }}>{isFav ? '★' : '☆'}</button>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <h2 style={{
-                fontFamily: 'Orbitron, sans-serif', fontSize: '13px',
-                color: '#e2e8f0', margin: 0
+                fontFamily: 'Orbitron, sans-serif', fontSize: '12px',
+                color: '#e2e8f0', margin: 0,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
               }}>{song.title}</h2>
-              <span style={{ color: '#64748b', fontSize: '11px' }}>
-                {song.original_key + ' → '}
+              <span style={{ color: '#64748b', fontSize: '10px' }}>
                 <span style={{ color: '#00d4ff' }}>{currentKey}</span>
-                {bpm > 0 && <span style={{ marginLeft: '8px', color: '#06ffa5' }}>{'♩ ' + bpm}</span>}
+                {bpm > 0 && <span style={{ marginLeft: '6px', color: '#06ffa5' }}>{'♩' + bpm}</span>}
               </span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          {/* Controles */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
             <TransposeControls compact={true} />
 
+            {/* Tamaño fuente */}
             <div style={{
-              display: 'flex', alignItems: 'center', gap: '4px',
-              padding: '4px 8px', borderRadius: '8px',
+              display: 'flex', alignItems: 'center', gap: '2px',
+              padding: '3px 6px', borderRadius: '6px',
               background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)'
             }}>
               <button onClick={() => setFontSize(f => Math.max(10, f - 2))} style={{
-                background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '12px'
+                background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '11px', padding: '0 2px'
               }}>A-</button>
-              <span style={{ color: '#64748b', fontSize: '10px', minWidth: '22px', textAlign: 'center' }}>
-                {fontSize}
-              </span>
+              <span style={{ color: '#64748b', fontSize: '10px', minWidth: '18px', textAlign: 'center' }}>{fontSize}</span>
               <button onClick={() => setFontSize(f => Math.min(28, f + 2))} style={{
-                background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '12px'
+                background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '11px', padding: '0 2px'
               }}>A+</button>
             </div>
 
+            {/* BPM solo desktop */}
             {!isMobile && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '4px',
-                padding: '4px 8px', borderRadius: '8px',
+                padding: '3px 8px', borderRadius: '6px',
                 background: 'rgba(6,255,165,0.05)', border: '1px solid rgba(6,255,165,0.2)'
               }}>
                 <input type="number" value={bpmInput} min="40" max="240"
                   onChange={e => setBpmInput(e.target.value)}
                   onBlur={saveBpm} onKeyDown={e => e.key === 'Enter' && saveBpm()}
                   style={{
-                    width: '38px', background: 'none', border: 'none',
+                    width: '36px', background: 'none', border: 'none',
                     color: '#06ffa5', fontFamily: 'Orbitron, sans-serif',
-                    fontSize: '12px', textAlign: 'center', outline: 'none'
+                    fontSize: '11px', textAlign: 'center', outline: 'none'
                   }}
                 />
-                <span style={{ color: '#64748b', fontSize: '10px' }}>BPM</span>
+                <span style={{ color: '#64748b', fontSize: '9px' }}>BPM</span>
                 <button onClick={() => setMetronome(m => !m)} style={{
-                  ...btnBase, width: '24px', height: '24px', borderRadius: '50%',
+                  ...btnBase, width: '22px', height: '22px', borderRadius: '50%',
                   background: metronome
                     ? (beat ? 'rgba(6,255,165,0.8)' : 'rgba(6,255,165,0.3)')
                     : 'rgba(255,255,255,0.05)',
                   border: '1px solid ' + (metronome ? 'rgba(6,255,165,0.6)' : 'rgba(255,255,255,0.1)'),
-                  fontSize: '11px', color: '#06ffa5'
+                  fontSize: '10px', color: '#06ffa5'
                 }}>♩</button>
               </div>
             )}
 
+            {/* Presentar */}
             <button onClick={() => setPresentation(true)} style={{
-              ...btnBase, padding: '5px 10px', borderRadius: '6px',
+              ...btnBase, padding: '4px 8px', borderRadius: '6px',
               background: 'rgba(6,255,165,0.1)', border: '1px solid rgba(6,255,165,0.3)',
-              color: '#06ffa5', fontSize: '11px', fontWeight: '600'
+              color: '#06ffa5', fontSize: '10px', fontWeight: '600'
             }}>PRES</button>
 
+            {/* Nav entre canciones */}
             {(hasPrev || hasNext) && (
-              <div style={{ display: 'flex', gap: '4px' }}>
+              <div style={{ display: 'flex', gap: '3px' }}>
                 <button onClick={onPrev} disabled={!hasPrev} style={{
-                  ...btnBase, padding: '5px 8px', borderRadius: '6px',
+                  ...btnBase, padding: '4px 8px', borderRadius: '6px',
                   background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
                   color: hasPrev ? '#00d4ff' : '#1e3a4a',
-                  fontSize: '12px', cursor: hasPrev ? 'pointer' : 'default'
+                  fontSize: '13px', cursor: hasPrev ? 'pointer' : 'default'
                 }}>←</button>
                 <button onClick={onNext} disabled={!hasNext} style={{
-                  ...btnBase, padding: '5px 8px', borderRadius: '6px',
+                  ...btnBase, padding: '4px 8px', borderRadius: '6px',
                   background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
                   color: hasNext ? '#00d4ff' : '#1e3a4a',
-                  fontSize: '12px', cursor: hasNext ? 'pointer' : 'default'
+                  fontSize: '13px', cursor: hasNext ? 'pointer' : 'default'
                 }}>→</button>
               </div>
             )}
 
+            {/* Cerrar */}
             <button onClick={() => setFullscreen(false)} style={{
-              ...btnBase, width: '32px', height: '32px', borderRadius: '8px',
+              ...btnBase, width: '28px', height: '28px', borderRadius: '6px',
               background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-              color: '#f87171', fontSize: '16px'
+              color: '#f87171', fontSize: '14px'
             }}>x</button>
           </div>
         </div>
@@ -487,10 +482,10 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
         }}>
           {['chords', 'notes', 'history'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
-              padding: '8px 14px', background: 'transparent', border: 'none',
+              padding: '7px 12px', background: 'transparent', border: 'none',
               borderBottom: '2px solid ' + (activeTab === tab ? '#00d4ff' : 'transparent'),
               color: activeTab === tab ? '#00d4ff' : '#64748b',
-              cursor: 'pointer', fontSize: '11px', fontWeight: '600',
+              cursor: 'pointer', fontSize: '10px', fontWeight: '600',
               letterSpacing: '1px', textTransform: 'uppercase', transition: 'all 0.2s'
             }}>
               {tab === 'chords' ? '♪ Acordes' : tab === 'notes' ? '✎ Notas' : '⏱ Historial'}
@@ -498,49 +493,53 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
           ))}
         </div>
 
-        {/* Índice secciones horizontal — solo en tab acordes */}
+        {/* Índice horizontal — secciones + canciones servicio */}
         {activeTab === 'chords' && (namedSections.length > 0 || serviceSongs?.length > 0) && (
           <div style={{
-            display: 'flex', gap: '6px', padding: '8px 16px',
+            display: 'flex', gap: '6px', padding: '7px 12px',
             overflowX: 'auto', flexShrink: 0,
             borderBottom: '1px solid rgba(0,212,255,0.08)',
-            background: 'rgba(0,0,0,0.1)'
+            background: 'rgba(0,0,0,0.15)'
           }}>
+            {/* Secciones de la canción */}
             {namedSections.map((section, i) => (
               <button key={i} onClick={() => scrollToSection(section.title)} style={{
-                flexShrink: 0, padding: '4px 12px', borderRadius: '20px', cursor: 'pointer',
+                flexShrink: 0, padding: '3px 10px', borderRadius: '20px', cursor: 'pointer',
                 background: section.color + '18', border: '1px solid ' + section.color + '40',
-                color: section.color, fontSize: '11px', fontWeight: '700',
+                color: section.color, fontSize: '10px', fontWeight: '700',
                 letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap'
               }}>{section.title}</button>
             ))}
-            {serviceSongs?.length > 0 && (
-              <>
-                {namedSections.length > 0 && (
-                  <div style={{ width: '1px', background: 'rgba(0,212,255,0.15)', flexShrink: 0, margin: '2px 6px' }} />
-                )}
-                {serviceSongs.map((s, i) => s && (
-                  <div key={i} style={{
-                    flexShrink: 0, padding: '4px 12px', borderRadius: '20px',
-                    background: s.id === song.id ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.03)',
-                    border: '1px solid ' + (s.id === song.id ? 'rgba(0,212,255,0.35)' : 'rgba(255,255,255,0.07)'),
-                    color: s.id === song.id ? '#00d4ff' : '#475569',
-                    fontSize: '11px', whiteSpace: 'nowrap'
-                  }}>
-                    {(i + 1) + '. ' + s.title}
-                  </div>
-                ))}
-              </>
+
+            {/* Separador */}
+            {namedSections.length > 0 && serviceSongs?.length > 0 && (
+              <div style={{
+                width: '1px', background: 'rgba(0,212,255,0.15)',
+                flexShrink: 0, margin: '2px 4px'
+              }} />
             )}
+
+            {/* Canciones del servicio */}
+            {serviceSongs?.map((s, i) => s && (
+              <div key={i} style={{
+                flexShrink: 0, padding: '3px 10px', borderRadius: '20px',
+                background: s.id === song.id ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.03)',
+                border: '1px solid ' + (s.id === song.id ? 'rgba(0,212,255,0.35)' : 'rgba(255,255,255,0.07)'),
+                color: s.id === song.id ? '#00d4ff' : '#475569',
+                fontSize: '10px', whiteSpace: 'nowrap'
+              }}>
+                {(i + 1) + '. ' + s.title}
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Contenido — scroll libre, sin cajas */}
+        {/* CONTENIDO — scroll libre sin cajas */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {activeTab === 'chords' && <LyricsFull />}
 
           {activeTab === 'notes' && (
-            <div style={{ padding: isMobile ? '16px 12px' : '24px 32px' }}>
+            <div style={{ padding: isMobile ? '16px 14px' : '24px 32px' }}>
               <p style={{
                 color: '#64748b', fontSize: '11px', letterSpacing: '2px',
                 textTransform: 'uppercase', margin: '0 0 12px'
@@ -562,7 +561,7 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
           )}
 
           {activeTab === 'history' && (
-            <div style={{ padding: isMobile ? '16px 12px' : '24px 32px' }}>
+            <div style={{ padding: isMobile ? '16px 14px' : '24px 32px' }}>
               <p style={{
                 color: '#64748b', fontSize: '11px', letterSpacing: '2px',
                 textTransform: 'uppercase', margin: '0 0 12px'
@@ -601,7 +600,7 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
     )
   }
 
-  // Vista compacta (tarjeta normal)
+  // Vista compacta normal
   return (
     <div style={{
       background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
