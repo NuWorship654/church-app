@@ -15,56 +15,46 @@ export const AuthProvider = ({ children }) => {
         .select('*')
         .eq('id', userId)
         .single()
-      setProfile(data)
+      setProfile(data || null)
     } catch (e) {
       setProfile(null)
     }
   }
 
   useEffect(() => {
-    let mounted = true
-
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!mounted) return
+    // Obtener sesión inicial
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
       if (session?.user) {
-        setUser(session.user)
-        await loadProfile(session.user.id)
-      }
-      setLoading(false)
-    }
-
-    init()
-
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!mounted) return
-      if (session?.user) {
-        setUser(session.user)
-        await loadProfile(session.user.id)
+        loadProfile(session.user.id).finally(() => setLoading(false))
       } else {
-        setUser(null)
+        setLoading(false)
+      }
+    }).catch(() => setLoading(false))
+
+    // Escuchar cambios
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        loadProfile(session.user.id)
+      } else {
         setProfile(null)
       }
     })
 
-    return () => {
-      mounted = false
-      listener.subscription.unsubscribe()
-    }
+    return () => listener.subscription.unsubscribe()
   }, [])
 
-  const signIn = async (email, password) => {
-    const result = await supabase.auth.signInWithPassword({ email, password })
-    return result
-  }
+  const signIn = (email, password) =>
+    supabase.auth.signInWithPassword({ email, password })
 
   const signOut = () => supabase.auth.signOut()
 
-  const isAdmin = profile?.role === 'admin'
+  const isAdmin         = profile?.role === 'admin'
   const isWorshipLeader = profile?.role === 'worship_leader'
-  const isPastor = profile?.role === 'pastor'
-  const isMember = profile?.role === 'member'
-  const canEdit = isAdmin || isWorshipLeader
+  const isPastor        = profile?.role === 'pastor'
+  const isMember        = profile?.role === 'member'
+  const canEdit         = isAdmin || isWorshipLeader
 
   return (
     <AuthContext.Provider value={{
@@ -72,7 +62,17 @@ export const AuthProvider = ({ children }) => {
       signIn, signOut,
       isAdmin, isWorshipLeader, isPastor, isMember, canEdit
     }}>
-      {!loading && children}
+      {loading ? (
+        <div style={{
+          minHeight: '100vh', background: '#020817',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{
+            fontFamily: 'Orbitron, sans-serif', color: '#00d4ff',
+            fontSize: '14px', letterSpacing: '3px'
+          }}>CARGANDO...</div>
+        </div>
+      ) : children}
     </AuthContext.Provider>
   )
 }
