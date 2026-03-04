@@ -58,11 +58,13 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
   useEffect(() => {
     if (!user || !song) return
     supabase.from('user_favorites')
-      .select('id').eq('user_id', user.id).eq('song_id', song.id).single()
-      .then(({ data }) => setIsFav(!!data))
+      .select('id').eq('user_id', user.id).eq('song_id', song.id)
+      .then(({ data }) => setIsFav(!!(data && data.length > 0)))
+
     supabase.from('song_notes')
-      .select('content').eq('user_id', user.id).eq('song_id', song.id).single()
-      .then(({ data }) => setNote(data?.content || ''))
+      .select('content').eq('user_id', user.id).eq('song_id', song.id)
+      .then(({ data }) => setNote(data && data.length > 0 ? data[0].content : ''))
+
     supabase.from('song_key_history')
       .select('key_used, used_at, services(title)')
       .eq('song_id', song.id)

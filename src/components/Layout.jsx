@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 export default function Layout() {
   const { profile, signOut, isAdmin } = useAuth()
   const navigate = useNavigate()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const handleSignOut = async () => { await signOut(); navigate('/login') }
 
@@ -34,9 +35,8 @@ export default function Layout() {
         background: 'rgba(2,8,23,0.95)',
         borderBottom: '1px solid rgba(0,212,255,0.15)',
         backdropFilter: 'blur(10px)',
-        padding: '0 20px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        height: '56px', gap: '12px'
+        padding: '0 16px', height: '56px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <span style={{ fontSize: '18px' }}>🎵</span>
@@ -47,11 +47,11 @@ export default function Layout() {
           }}>WORSHIP</span>
         </div>
 
-        <div style={{ display: 'flex', gap: '2px', overflowX: 'auto' }}>
+        <div className="nav-desktop" style={{ display: 'flex', gap: '2px' }}>
           {navItems.map(item => (
             <NavLink key={item.to} to={item.to} end={item.to === '/'}
               style={({ isActive }) => ({
-                padding: '5px 12px', borderRadius: '6px',
+                padding: '5px 10px', borderRadius: '6px',
                 fontSize: '11px', fontWeight: '600', letterSpacing: '1px',
                 textDecoration: 'none', transition: 'all 0.3s', whiteSpace: 'nowrap',
                 background: isActive ? 'rgba(0,212,255,0.1)' : 'transparent',
@@ -69,26 +69,64 @@ export default function Layout() {
             <div style={{
               width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer',
               background: 'linear-gradient(135deg, rgba(0,212,255,0.3), rgba(124,58,237,0.3))',
-              border: '1px solid ' + (roleColors[profile?.role] || '#64748b') + '66',
+              border: '2px solid ' + (roleColors[profile?.role] || '#64748b') + '66',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: '14px', fontWeight: '700', color: '#e2e8f0'
             }}>
               {(profile?.full_name || '?')[0].toUpperCase()}
             </div>
           </NavLink>
-          <button onClick={handleSignOut} style={{
+
+          <button onClick={handleSignOut} className="nav-desktop-btn" style={{
             background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
             color: '#f87171', padding: '5px 12px', borderRadius: '6px',
-            fontSize: '11px', fontWeight: '600', letterSpacing: '1px',
-            cursor: 'pointer', transition: 'all 0.3s'
-          }}
-          onMouseEnter={e => e.target.style.background = 'rgba(239,68,68,0.2)'}
-          onMouseLeave={e => e.target.style.background = 'rgba(239,68,68,0.1)'}
-          >SALIR</button>
+            fontSize: '11px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer'
+          }}>SALIR</button>
+
+          <button onClick={() => setMenuOpen(!menuOpen)} className="nav-mobile-btn" style={{
+            background: 'none', border: 'none', color: '#94a3b8',
+            fontSize: '22px', cursor: 'pointer', padding: '4px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>{menuOpen ? '✕' : '☰'}</button>
         </div>
       </nav>
 
-      <main style={{ position: 'relative', zIndex: 1, maxWidth: '1100px', margin: '0 auto', padding: '24px 16px' }}>
+      {menuOpen && (
+        <div className="nav-mobile-btn" style={{
+          position: 'fixed', top: '56px', left: 0, right: 0, zIndex: 49,
+          background: 'rgba(2,8,23,0.98)', backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid rgba(0,212,255,0.15)',
+          padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '4px',
+          animation: 'fadeInUp 0.2s ease forwards'
+        }}>
+          {navItems.map(item => (
+            <NavLink key={item.to} to={item.to} end={item.to === '/'}
+              onClick={() => setMenuOpen(false)}
+              style={({ isActive }) => ({
+                padding: '12px 16px', borderRadius: '8px',
+                fontSize: '13px', fontWeight: '600', letterSpacing: '1px',
+                textDecoration: 'none', transition: 'all 0.2s',
+                background: isActive ? 'rgba(0,212,255,0.1)' : 'transparent',
+                color: isActive ? '#00d4ff' : '#94a3b8',
+                border: isActive ? '1px solid rgba(0,212,255,0.3)' : '1px solid transparent',
+                display: 'flex', alignItems: 'center', gap: '10px'
+              })}
+            >
+              <span style={{ fontSize: '16px' }}>{item.icon}</span>
+              {item.label}
+            </NavLink>
+          ))}
+          <div style={{ borderTop: '1px solid rgba(0,212,255,0.1)', marginTop: '8px', paddingTop: '8px' }}>
+            <button onClick={() => { handleSignOut(); setMenuOpen(false) }} style={{
+              width: '100%', padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
+              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+              color: '#f87171', fontSize: '13px', fontWeight: '600', textAlign: 'left'
+            }}>✕ CERRAR SESION</button>
+          </div>
+        </div>
+      )}
+
+      <main style={{ position: 'relative', zIndex: 1, maxWidth: '1100px', margin: '0 auto', padding: '16px' }}>
         <Outlet />
       </main>
     </div>
