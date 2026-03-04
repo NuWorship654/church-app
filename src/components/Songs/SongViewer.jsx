@@ -51,9 +51,16 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
   const [keyHistory, setKeyHistory] = useState([])
   const [activeTab, setActiveTab] = useState('chords')
   const [presSection, setPresSection] = useState(0)
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   const metRef = useRef(null)
   const audioCtx = useRef(null)
   const sectionRefs = useRef({})
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   useEffect(() => {
     if (!user || !song) return
@@ -157,8 +164,10 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
       }}>-</button>
       <div style={{ textAlign: 'center', minWidth: compact ? '44px' : '60px' }}>
         <div style={{
-          fontFamily: 'Orbitron, sans-serif', fontSize: compact ? '16px' : '22px',
-          fontWeight: '900', color: '#00d4ff', textShadow: '0 0 20px rgba(0,212,255,0.5)'
+          fontFamily: 'Orbitron, sans-serif',
+          fontSize: compact ? '16px' : '22px',
+          fontWeight: '900', color: '#00d4ff',
+          textShadow: '0 0 20px rgba(0,212,255,0.5)'
         }}>{currentKey}</div>
         {!compact && (
           <div style={{ color: '#64748b', fontSize: '10px', letterSpacing: '1px' }}>
@@ -271,9 +280,218 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
     )
   }
 
+  // MODAL FULLSCREEN
+  if (fullscreen) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 100, background: '#020817',
+        backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(0,212,255,0.08) 0%, transparent 50%)',
+        display: 'flex', flexDirection: 'column', animation: 'fadeInUp 0.2s ease forwards'
+      }}>
+
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', borderBottom: '1px solid rgba(0,212,255,0.15)',
+          background: 'rgba(2,8,23,0.98)', backdropFilter: 'blur(10px)',
+          flexShrink: 0, flexWrap: 'wrap', gap: '8px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button onClick={toggleFav} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: isFav ? '#f59e0b' : '#475569' }}>
+              {isFav ? '★' : '☆'}
+            </button>
+            <div>
+              <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '13px', color: '#e2e8f0', margin: 0 }}>{song.title}</h2>
+              <span style={{ color: '#64748b', fontSize: '11px' }}>
+                {song.original_key + ' → '}
+                <span style={{ color: '#00d4ff' }}>{currentKey}</span>
+                {bpm > 0 && <span style={{ marginLeft: '8px', color: '#06ffa5' }}>{'♩ ' + bpm}</span>}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <TransposeControls compact={true} />
+
+            {/* Tamaño fuente */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <button onClick={() => setFontSize(f => Math.max(10, f - 2))} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>A-</button>
+              <span style={{ color: '#64748b', fontSize: '10px', minWidth: '20px', textAlign: 'center' }}>{fontSize}</span>
+              <button onClick={() => setFontSize(f => Math.min(28, f + 2))} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>A+</button>
+            </div>
+
+            {/* BPM - solo desktop */}
+            {!isMobile && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '8px', background: 'rgba(6,255,165,0.05)', border: '1px solid rgba(6,255,165,0.2)' }}>
+                <input type="number" value={bpmInput} min="40" max="240"
+                  onChange={e => setBpmInput(e.target.value)}
+                  onBlur={saveBpm} onKeyDown={e => e.key === 'Enter' && saveBpm()}
+                  style={{ width: '38px', background: 'none', border: 'none', color: '#06ffa5', fontFamily: 'Orbitron, sans-serif', fontSize: '12px', textAlign: 'center', outline: 'none' }}
+                />
+                <span style={{ color: '#64748b', fontSize: '10px' }}>BPM</span>
+                <button onClick={() => setMetronome(m => !m)} style={{
+                  ...btnBase, width: '24px', height: '24px', borderRadius: '50%',
+                  background: metronome ? (beat ? 'rgba(6,255,165,0.8)' : 'rgba(6,255,165,0.3)') : 'rgba(255,255,255,0.05)',
+                  border: '1px solid ' + (metronome ? 'rgba(6,255,165,0.6)' : 'rgba(255,255,255,0.1)'),
+                  fontSize: '11px', color: '#06ffa5'
+                }}>♩</button>
+              </div>
+            )}
+
+            <button onClick={() => setPresentation(true)} style={{
+              ...btnBase, padding: '5px 10px', borderRadius: '6px',
+              background: 'rgba(6,255,165,0.1)', border: '1px solid rgba(6,255,165,0.3)',
+              color: '#06ffa5', fontSize: '11px', fontWeight: '600'
+            }}>PRES</button>
+
+            {(hasPrev || hasNext) && (
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button onClick={onPrev} disabled={!hasPrev} style={{
+                  ...btnBase, padding: '5px 8px', borderRadius: '6px',
+                  background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
+                  color: hasPrev ? '#00d4ff' : '#1e3a4a', fontSize: '12px', cursor: hasPrev ? 'pointer' : 'default'
+                }}>←</button>
+                <button onClick={onNext} disabled={!hasNext} style={{
+                  ...btnBase, padding: '5px 8px', borderRadius: '6px',
+                  background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
+                  color: hasNext ? '#00d4ff' : '#1e3a4a', fontSize: '12px', cursor: hasNext ? 'pointer' : 'default'
+                }}>→</button>
+              </div>
+            )}
+
+            <button onClick={() => setFullscreen(false)} style={{
+              ...btnBase, width: '32px', height: '32px', borderRadius: '8px',
+              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+              color: '#f87171', fontSize: '16px'
+            }}>x</button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', borderBottom: '1px solid rgba(0,212,255,0.1)', background: 'rgba(0,0,0,0.2)', flexShrink: 0 }}>
+          {['chords', 'notes', 'history'].map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+              padding: '8px 14px', background: 'transparent', border: 'none',
+              borderBottom: '2px solid ' + (activeTab === tab ? '#00d4ff' : 'transparent'),
+              color: activeTab === tab ? '#00d4ff' : '#64748b',
+              cursor: 'pointer', fontSize: '11px', fontWeight: '600', letterSpacing: '1px',
+              textTransform: 'uppercase', transition: 'all 0.2s'
+            }}>
+              {tab === 'chords' ? '♪ Acordes' : tab === 'notes' ? '✎ Notas' : '⏱ Historial'}
+            </button>
+          ))}
+        </div>
+
+        {/* Índice horizontal de secciones — siempre arriba, sin columna lateral */}
+        {activeTab === 'chords' && (namedSections.length > 0 || serviceSongs?.length > 0) && (
+          <div style={{
+            display: 'flex', gap: '6px', padding: '8px 16px',
+            overflowX: 'auto', flexShrink: 0,
+            borderBottom: '1px solid rgba(0,212,255,0.08)',
+            background: 'rgba(0,0,0,0.15)'
+          }}>
+            {namedSections.map((section, i) => (
+              <button key={i} onClick={() => scrollToSection(section.title)} style={{
+                flexShrink: 0, padding: '4px 12px', borderRadius: '20px', cursor: 'pointer',
+                background: section.color + '22', border: '1px solid ' + section.color + '44',
+                color: section.color, fontSize: '11px', fontWeight: '700',
+                letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap'
+              }}>{section.title}</button>
+            ))}
+            {serviceSongs?.length > 0 && (
+              <>
+                {namedSections.length > 0 && (
+                  <div style={{ width: '1px', background: 'rgba(0,212,255,0.2)', flexShrink: 0, margin: '2px 4px' }} />
+                )}
+                {serviceSongs.map((s, i) => s && (
+                  <div key={i} style={{
+                    flexShrink: 0, padding: '4px 12px', borderRadius: '20px',
+                    background: s.id === song.id ? 'rgba(0,212,255,0.15)' : 'rgba(255,255,255,0.03)',
+                    border: '1px solid ' + (s.id === song.id ? 'rgba(0,212,255,0.4)' : 'rgba(255,255,255,0.08)'),
+                    color: s.id === song.id ? '#00d4ff' : '#475569',
+                    fontSize: '11px', whiteSpace: 'nowrap'
+                  }}>
+                    {(i + 1) + '. ' + s.title}
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Contenido — ancho completo, sin columna lateral */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 12px' : '20px 32px' }}>
+          {activeTab === 'chords' && (
+            sections.length > 0 ? (
+              sections.map((section, i) => <SectionBlock key={i} section={section} />)
+            ) : (
+              <pre style={{ fontFamily: 'monospace', fontSize: fontSize + 'px', lineHeight: '2', color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>
+                {transposedText || song.lyrics || 'Sin contenido'}
+              </pre>
+            )
+          )}
+
+          {activeTab === 'notes' && (
+            <div>
+              <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px' }}>
+                MIS NOTAS PERSONALES
+              </p>
+              <textarea value={note} onChange={e => setNote(e.target.value)} rows={10}
+                placeholder="Escribe tus notas... (capos, dedos, recordatorios)"
+                className="input-field" style={{ resize: 'vertical', fontSize: '14px', lineHeight: '1.6' }}
+              />
+              <button onClick={saveNote} disabled={savingNote} style={{
+                marginTop: '12px', padding: '10px 24px', borderRadius: '8px', cursor: 'pointer',
+                background: noteSaved ? 'rgba(6,255,165,0.2)' : 'linear-gradient(135deg, #00d4ff, #7c3aed)',
+                border: noteSaved ? '1px solid rgba(6,255,165,0.4)' : 'none',
+                color: noteSaved ? '#06ffa5' : 'white', fontSize: '13px', fontWeight: '600'
+              }}>
+                {savingNote ? 'GUARDANDO...' : noteSaved ? '✓ GUARDADO' : 'GUARDAR NOTAS'}
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'history' && (
+            <div>
+              <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px' }}>
+                HISTORIAL DE TONOS
+              </p>
+              {keyHistory.length === 0 ? (
+                <p style={{ color: '#475569', fontSize: '13px' }}>No hay historial aun.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {keyHistory.map((h, i) => (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '12px 16px', borderRadius: '8px',
+                      background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(0,212,255,0.08)'
+                    }}>
+                      <div>
+                        <p style={{ margin: '0 0 2px', fontSize: '13px', color: '#e2e8f0' }}>
+                          {h.services?.title || 'Servicio'}
+                        </p>
+                        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
+                          {new Date(h.used_at).toLocaleDateString('es-MX')}
+                        </p>
+                      </div>
+                      <span style={{
+                        fontFamily: 'Orbitron, sans-serif', fontSize: '18px', fontWeight: '900',
+                        color: '#00d4ff', textShadow: '0 0 10px rgba(0,212,255,0.4)'
+                      }}>{h.key_used}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Vista compacta normal
   return (
     <div>
-      {/* Vista compacta */}
       <div style={{
         background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
         borderRadius: '12px', padding: '20px', animation: 'fadeInUp 0.3s ease forwards'
@@ -322,218 +540,6 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
           }}>▶ VER EN YOUTUBE</a>
         )}
       </div>
-
-      {/* Modal pantalla completa */}
-      {fullscreen && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 100, background: '#020817',
-          backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(0,212,255,0.08) 0%, transparent 50%)',
-          display: 'flex', flexDirection: 'column', animation: 'fadeInUp 0.2s ease forwards'
-        }}>
-
-          {/* Header */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '10px 16px', borderBottom: '1px solid rgba(0,212,255,0.15)',
-            background: 'rgba(2,8,23,0.98)', backdropFilter: 'blur(10px)',
-            flexShrink: 0, flexWrap: 'wrap', gap: '8px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button onClick={toggleFav} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: isFav ? '#f59e0b' : '#475569' }}>
-                {isFav ? '★' : '☆'}
-              </button>
-              <div>
-                <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#e2e8f0', margin: 0 }}>{song.title}</h2>
-                <span style={{ color: '#64748b', fontSize: '11px' }}>
-                  {song.original_key + ' → '}
-                  <span style={{ color: '#00d4ff' }}>{currentKey}</span>
-                  {bpm > 0 && <span style={{ marginLeft: '8px', color: '#06ffa5' }}>{'♩ ' + bpm}</span>}
-                </span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <TransposeControls compact={true} />
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                <button onClick={() => setFontSize(f => Math.max(10, f - 2))} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>A-</button>
-                <span style={{ color: '#64748b', fontSize: '10px', minWidth: '20px', textAlign: 'center' }}>{fontSize}</span>
-                <button onClick={() => setFontSize(f => Math.min(28, f + 2))} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>A+</button>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '8px', background: 'rgba(6,255,165,0.05)', border: '1px solid rgba(6,255,165,0.2)' }}>
-                <input type="number" value={bpmInput} min="40" max="240"
-                  onChange={e => setBpmInput(e.target.value)}
-                  onBlur={saveBpm} onKeyDown={e => e.key === 'Enter' && saveBpm()}
-                  style={{ width: '38px', background: 'none', border: 'none', color: '#06ffa5', fontFamily: 'Orbitron, sans-serif', fontSize: '12px', textAlign: 'center', outline: 'none' }}
-                />
-                <span style={{ color: '#64748b', fontSize: '10px' }}>BPM</span>
-                <button onClick={() => setMetronome(m => !m)} style={{
-                  ...btnBase, width: '24px', height: '24px', borderRadius: '50%',
-                  background: metronome ? (beat ? 'rgba(6,255,165,0.8)' : 'rgba(6,255,165,0.3)') : 'rgba(255,255,255,0.05)',
-                  border: '1px solid ' + (metronome ? 'rgba(6,255,165,0.6)' : 'rgba(255,255,255,0.1)'),
-                  fontSize: '11px', color: '#06ffa5'
-                }}>♩</button>
-              </div>
-
-              <button onClick={() => setPresentation(true)} style={{
-                ...btnBase, padding: '5px 10px', borderRadius: '6px',
-                background: 'rgba(6,255,165,0.1)', border: '1px solid rgba(6,255,165,0.3)',
-                color: '#06ffa5', fontSize: '11px', fontWeight: '600'
-              }}>PRESENTAR</button>
-
-              {(hasPrev || hasNext) && (
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <button onClick={onPrev} disabled={!hasPrev} style={{
-                    ...btnBase, padding: '5px 8px', borderRadius: '6px',
-                    background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
-                    color: hasPrev ? '#00d4ff' : '#1e3a4a', fontSize: '12px', cursor: hasPrev ? 'pointer' : 'default'
-                  }}>← ANT</button>
-                  <button onClick={onNext} disabled={!hasNext} style={{
-                    ...btnBase, padding: '5px 8px', borderRadius: '6px',
-                    background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
-                    color: hasNext ? '#00d4ff' : '#1e3a4a', fontSize: '12px', cursor: hasNext ? 'pointer' : 'default'
-                  }}>SIG →</button>
-                </div>
-              )}
-
-              {song.youtube_url && (
-                <a href={song.youtube_url} target="_blank" rel="noopener noreferrer" style={{
-                  ...btnBase, padding: '5px 8px', borderRadius: '6px',
-                  background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-                  color: '#f87171', textDecoration: 'none', fontSize: '11px', fontWeight: '600'
-                }}>▶ YT</a>
-              )}
-
-              <button onClick={() => setFullscreen(false)} style={{
-                ...btnBase, width: '32px', height: '32px', borderRadius: '8px',
-                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-                color: '#f87171', fontSize: '16px'
-              }}>x</button>
-            </div>
-          </div>
-
-          {/* Tabs acordes / notas / historial */}
-          <div style={{ display: 'flex', borderBottom: '1px solid rgba(0,212,255,0.1)', background: 'rgba(0,0,0,0.2)', flexShrink: 0 }}>
-            {['chords', 'notes', 'history'].map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                padding: '8px 14px', background: 'transparent', border: 'none',
-                borderBottom: '2px solid ' + (activeTab === tab ? '#00d4ff' : 'transparent'),
-                color: activeTab === tab ? '#00d4ff' : '#64748b',
-                cursor: 'pointer', fontSize: '11px', fontWeight: '600', letterSpacing: '1px',
-                textTransform: 'uppercase', transition: 'all 0.2s'
-              }}>
-                {tab === 'chords' ? '♪ Acordes' : tab === 'notes' ? '✎ Notas' : '⏱ Historial'}
-              </button>
-            ))}
-          </div>
-
-          {/* Índice horizontal de secciones + lista servicio */}
-          {activeTab === 'chords' && (namedSections.length > 0 || serviceSongs?.length > 0) && (
-            <div style={{
-              display: 'flex', gap: '6px', padding: '8px 16px',
-              overflowX: 'auto', flexShrink: 0,
-              borderBottom: '1px solid rgba(0,212,255,0.08)',
-              background: 'rgba(0,0,0,0.15)'
-            }}>
-              {namedSections.map((section, i) => (
-                <button key={i} onClick={() => scrollToSection(section.title)} style={{
-                  flexShrink: 0, padding: '4px 12px', borderRadius: '20px', cursor: 'pointer',
-                  background: section.color + '22', border: '1px solid ' + section.color + '44',
-                  color: section.color, fontSize: '11px', fontWeight: '700',
-                  letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap'
-                }}>{section.title}</button>
-              ))}
-
-              {serviceSongs?.length > 0 && (
-                <>
-                  {namedSections.length > 0 && (
-                    <div style={{ width: '1px', background: 'rgba(0,212,255,0.2)', flexShrink: 0, margin: '2px 4px' }} />
-                  )}
-                  {serviceSongs.map((s, i) => s && (
-                    <div key={i} style={{
-                      flexShrink: 0, padding: '4px 12px', borderRadius: '20px',
-                      background: s.id === song.id ? 'rgba(0,212,255,0.15)' : 'rgba(255,255,255,0.03)',
-                      border: '1px solid ' + (s.id === song.id ? 'rgba(0,212,255,0.4)' : 'rgba(255,255,255,0.08)'),
-                      color: s.id === song.id ? '#00d4ff' : '#475569',
-                      fontSize: '11px', whiteSpace: 'nowrap'
-                    }}>
-                      {(i + 1) + '. ' + s.title}
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Contenido principal */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-            {activeTab === 'chords' && (
-              sections.length > 0 ? (
-                sections.map((section, i) => <SectionBlock key={i} section={section} />)
-              ) : (
-                <pre style={{ fontFamily: 'monospace', fontSize: fontSize + 'px', lineHeight: '2', color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>
-                  {transposedText || song.lyrics || 'Sin contenido'}
-                </pre>
-              )
-            )}
-
-            {activeTab === 'notes' && (
-              <div>
-                <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px' }}>
-                  MIS NOTAS PERSONALES
-                </p>
-                <textarea value={note} onChange={e => setNote(e.target.value)} rows={10}
-                  placeholder="Escribe tus notas personales... (capos, dedos, recordatorios)"
-                  className="input-field" style={{ resize: 'vertical', fontSize: '14px', lineHeight: '1.6' }}
-                />
-                <button onClick={saveNote} disabled={savingNote} style={{
-                  marginTop: '12px', padding: '10px 24px', borderRadius: '8px', cursor: 'pointer',
-                  background: noteSaved ? 'rgba(6,255,165,0.2)' : 'linear-gradient(135deg, #00d4ff, #7c3aed)',
-                  border: noteSaved ? '1px solid rgba(6,255,165,0.4)' : 'none',
-                  color: noteSaved ? '#06ffa5' : 'white', fontSize: '13px', fontWeight: '600'
-                }}>
-                  {savingNote ? 'GUARDANDO...' : noteSaved ? '✓ GUARDADO' : 'GUARDAR NOTAS'}
-                </button>
-              </div>
-            )}
-
-            {activeTab === 'history' && (
-              <div>
-                <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px' }}>
-                  HISTORIAL DE TONOS USADOS
-                </p>
-                {keyHistory.length === 0 ? (
-                  <p style={{ color: '#475569', fontSize: '13px' }}>No hay historial aun.</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {keyHistory.map((h, i) => (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '12px 16px', borderRadius: '8px',
-                        background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(0,212,255,0.08)'
-                      }}>
-                        <div>
-                          <p style={{ margin: '0 0 2px', fontSize: '13px', color: '#e2e8f0' }}>
-                            {h.services?.title || 'Servicio'}
-                          </p>
-                          <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
-                            {new Date(h.used_at).toLocaleDateString('es-MX')}
-                          </p>
-                        </div>
-                        <span style={{
-                          fontFamily: 'Orbitron, sans-serif', fontSize: '18px', fontWeight: '900',
-                          color: '#00d4ff', textShadow: '0 0 10px rgba(0,212,255,0.4)'
-                        }}>{h.key_used}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
