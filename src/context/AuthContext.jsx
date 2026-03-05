@@ -3,128 +3,94 @@ import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
 
-const SESSION_KEY = 'worship_user'
-const PROFILE_KEY = 'worship_profile'
-
-const saveLocal = (key, val) => {
-  try { localStorage.setItem(key, JSON.stringify(val)) } catch (e) {}
-}
-const loadLocal = (key) => {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : null
-  } catch (e) { return null }
-}
-const clearLocal = () => {
-  try {
-    localStorage.removeItem(SESSION_KEY)
-    localStorage.removeItem(PROFILE_KEY)
-  } catch (e) {}
-}
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch(e){} }
+const load = (k) => { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : null } catch(e){ return null } }
+const clear = () => { try { localStorage.removeItem('wu'); localStorage.removeItem('wp') } catch(e){} }
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => loadLocal(SESSION_KEY))
-  const [profile, setProfile] = useState(() => loadLocal(PROFILE_KEY))
+  const [user, setUser]       = useState(null)
+  const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [isOfflineAuth, setIsOfflineAuth] = useState(false)
+  const [isOffline, setIsOffline] = useState(false)
+
+  const loadProfile = async (userId) => {
+    try {
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+      if (data) { setProfile(data); save('wp', data) }
+      else setProfile(null)
+    } catch (e) {
+      const cached = load('wp')
+      if (cached?.id === userId) setProfile(cached)
+      else setProfile(null)
+    }
+  }
 
   useEffect(() => {
-    const verify = async () => {
+    // Garantía absoluta: loading se quita máximo en 3 segundos pase lo que pase
+    const safetyTimer = setTimeout(() => {
+      setLoading(false)
+    }, 3000)
+
+    const init = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        const { data: { session } } = await supabase.auth.getSession()
 
-        if (error || !session) {
-          if (!navigator.onLine) {
-            // Sin internet y sin sesión de Supabase — usar caché si existe
-            const cachedUser = loadLocal(SESSION_KEY)
-            if (cachedUser) {
-              setIsOfflineAuth(true)
-            } else {
-              clearLocal()
-              setUser(null)
-              setProfile(null)
-            }
-          } else {
-            // Online pero sin sesión válida — limpiar
-            clearLocal()
-            setUser(null)
-            setProfile(null)
-          }
-        } else {
-          // Sesión válida
+        if (session?.user) {
           setUser(session.user)
-          saveLocal(SESSION_KEY, session.user)
-          setIsOfflineAuth(false)
-
-          // Actualizar perfil en background sin bloquear
-          supabase.from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
-            .then(({ data }) => {
-              if (data) {
-                setProfile(data)
-                saveLocal(PROFILE_KEY, data)
-              }
-            })
+          save('wu', session.user)
+          setIsOffline(false)
+          await loadProfile(session.user.id)
+        } else {
+          if (!navigator.onLine) {
+            const cu = load('wu'); const cp = load('wp')
+            if (cu) { setUser(cu); setIsOffline(true) }
+            if (cp) setProfile(cp)
+          } else {
+            clear(); setUser(null); setProfile(null)
+          }
         }
       } catch (e) {
-        // Error de red — mantener caché
-        setIsOfflineAuth(true)
+        const cu = load('wu'); const cp = load('wp')
+        if (cu) { setUser(cu); setIsOffline(true) }
+        if (cp) setProfile(cp)
       } finally {
+        clearTimeout(safetyTimer)
         setLoading(false)
       }
     }
 
-    verify()
+    init()
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user)
-        saveLocal(SESSION_KEY, session.user)
-        setIsOfflineAuth(false)
-        const { data } = await supabase.from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-        if (data) {
-          setProfile(data)
-          saveLocal(PROFILE_KEY, data)
-        }
+        save('wu', session.user)
+        setIsOffline(false)
+        loadProfile(session.user.id)
       } else {
-        if (navigator.onLine) {
-          clearLocal()
-          setUser(null)
-          setProfile(null)
-        }
+        if (navigator.onLine) { clear(); setUser(null); setProfile(null) }
       }
     })
 
-    return () => listener.subscription.unsubscribe()
+    return () => {
+      clearTimeout(safetyTimer)
+      listener.subscription.unsubscribe()
+    }
   }, [])
 
   const signIn = async (email, password) => {
     const result = await supabase.auth.signInWithPassword({ email, password })
     if (result.data?.session) {
       setUser(result.data.session.user)
-      saveLocal(SESSION_KEY, result.data.session.user)
-      const { data } = await supabase.from('profiles')
-        .select('*')
-        .eq('id', result.data.session.user.id)
-        .single()
-      if (data) {
-        setProfile(data)
-        saveLocal(PROFILE_KEY, data)
-      }
+      save('wu', result.data.session.user)
+      await loadProfile(result.data.session.user.id)
     }
     return result
   }
 
   const signOut = async () => {
-    clearLocal()
-    setUser(null)
-    setProfile(null)
-    try { await supabase.auth.signOut() } catch (e) {}
+    clear(); setUser(null); setProfile(null)
+    try { await supabase.auth.signOut() } catch(e) {}
   }
 
   const isAdmin         = profile?.role === 'admin'
@@ -135,26 +101,18 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, profile, loading, isOfflineAuth,
+      user, profile, loading, isOffline,
       signIn, signOut,
       isAdmin, isWorshipLeader, isPastor, isMember, canEdit
     }}>
       {loading ? (
         <div style={{
-          minHeight: '100vh',
-          background: '#020817',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '12px'
+          minHeight: '100vh', background: '#020817',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
-          <div style={{
-            fontFamily: 'Orbitron, sans-serif',
-            color: '#00d4ff',
-            fontSize: '14px',
-            letterSpacing: '3px'
-          }}>CARGANDO...</div>
+          <div style={{ fontFamily: 'Orbitron, sans-serif', color: '#00d4ff', fontSize: '14px', letterSpacing: '3px' }}>
+            CARGANDO...
+          </div>
         </div>
       ) : children}
     </AuthContext.Provider>
