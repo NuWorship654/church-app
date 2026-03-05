@@ -7,32 +7,31 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: ['logo.png', 'favicon.ico'],
+      manifest: {
+        name: 'Worship App',
+        short_name: 'Worship',
+        description: 'App de gestión de servicios de iglesia',
+        theme_color: '#020817',
+        background_color: '#020817',
+        display: 'standalone',
+        orientation: 'portrait',
+        icons: [
+          { src: 'logo.png', sizes: '192x192', type: 'image/png' },
+          { src: 'logo.png', sizes: '512x512', type: 'image/png' }
+        ]
+      },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'supabase-cache',
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 24 * 7
-              }
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 }
             }
           }
-        ]
-      },
-      manifest: {
-        name: 'Church Worship App',
-        short_name: 'Worship',
-        start_url: '/',
-        display: 'standalone',
-        background_color: '#ffffff',
-        theme_color: '#3b82f6',
-        icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
         ]
       }
     })

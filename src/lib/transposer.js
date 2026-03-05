@@ -18,3 +18,22 @@ export const transposeText = (text, semitones) => {
     return `[${transposeChord(chord, semitones)}]`
   })
 }
+
+// Detecta si una línea es de acordes
+export const isChordLine = (line) => {
+  const trimmed = line.trim()
+  if (!trimmed) return false
+  if (/\[[A-G][^\]]*\]/.test(trimmed)) return true
+  const words = trimmed.split(/\s+/)
+  return words.length > 0 && words.every(w =>
+    /^[A-G][#b]?(m|maj|min|dim|aug|sus|add|M)?[0-9]?(\/[A-G][#b]?)?$/.test(w)
+  )
+}
+
+export const KEYS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+
+export const transposeKey = (key, semitones) => {
+  const idx = KEYS.indexOf(key)
+  if (idx === -1) return key
+  return KEYS[((idx + semitones) % 12 + 12) % 12]
+}

@@ -1,56 +1,23 @@
 import { useState, useEffect, useRef } from 'react'
-import { transposeText } from '../../lib/transposer'
+import { transposeText, KEYS } from '../../lib/transposer'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
+import { saveLastKey, getLastKey } from '../../lib/songCache'
+import { useSwipe } from '../../hooks/useSwipe'
+import { useRealtimeKey } from '../../hooks/useRealtimeKey'
+import Controls from './SongControls'
+import LyricsView from './LyricsView'
+import PresentationMode from './PresentationMode'
 
-const KEYS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
-const SECTION_COLORS = {
-  'verso': '#00d4ff', 'coro': '#7c3aed', 'puente': '#06ffa5',
-  'intro': '#f59e0b', 'outro': '#f87171', 'pre-coro': '#ec4899',
-  'interludio': '#8b5cf6', 'final': '#f97316'
-}
+export default function SongViewer({
+  song, onNext, onPrev, hasNext, hasPrev,
+  serviceSongs, autoExpand = false
+}) {
+  const { user, isAdmin, isWorshipLeader } = useAuth()
+  const isLeader = isAdmin || isWorshipLeader
 
-function parseSections(text) {
-  if (!text) return []
-  const lines = text.split('\n')
-  const sections = []
-  let current = null
-  for (const line of lines) {
-    const match = line.match(/^\[([^\]]+)\]$/)
-    if (match) {
-      if (current) sections.push(current)
-      const title = match[1]
-      const key = title.toLowerCase().replace(/\s+\d+$/, '').trim()
-      current = { title, key, color: SECTION_COLORS[key] || '#64748b', lines: [] }
-    } else if (current) {
-      current.lines.push(line)
-    } else {
-      if (!sections.length) sections.push({ title: null, key: 'song', color: '#64748b', lines: [] })
-      sections[0].lines.push(line)
-    }
-  }
-  if (current) sections.push(current)
-  return sections
-}
-
-// Detecta si una línea es de acordes
-function isChordLine(line) {
-  const trimmed = line.trim()
-  if (!trimmed) return false
-  // Si contiene texto entre corchetes tipo [G] [Am] etc
-  if (/\[[A-G][^\]]*\]/.test(trimmed)) return true
-  // Si la línea entera son acordes separados por espacios
-  const words = trimmed.split(/\s+/)
-  return words.every(w => /^[A-G][#b]?(m|maj|min|dim|aug|sus|add|M)?[0-9]?(\/[A-G][#b]?)?$/.test(w))
-}
-
-export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, serviceSongs }) {
-  const { user } = useAuth()
   const [semitones, setSemitones] = useState(0)
-  const [fullscreen, setFullscreen] = useState(false)
-  const [presentation, setPresentation] = useState(false)
   const [fontSize, setFontSize] = useState(15)
-  const [presFontSize, setPresFontSize] = useState(36)
   const [isFav, setIsFav] = useState(false)
   const [bpmInput, setBpmInput] = useState(song?.bpm || 0)
   const [bpm, setBpm] = useState(song?.bpm || 0)
@@ -61,17 +28,72 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
   const [noteSaved, setNoteSaved] = useState(false)
   const [keyHistory, setKeyHistory] = useState([])
   const [activeTab, setActiveTab] = useState('chords')
-  const [presSection, setPresSection] = useState(0)
+  const [presentation, setPresentation] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  const [syncEnabled, setSyncEnabled] = useState(false)
+  const [connectedUsers, setConnectedUsers] = useState(0)
   const metRef = useRef(null)
   const audioCtx = useRef(null)
-  const sectionRefs = useRef({})
+
+  // Sync en tiempo real
+  const channelRef = useRef(null)
+  useEffect(() => {
+    if (!syncEnabled || !song?.id) return
+    const ch = supabase.channel(`song-key-${song.id}`, { config: { broadcast: { self: false } } })
+    ch.on('broadcast', { event: 'key-change' }, ({ payload }) => {
+      if (!isLeader) setSemitones(payload.semitones)
+    })
+    .on('presence', { event: 'sync' }, () => {
+      setConnectedUsers(Object.keys(ch.presenceState()).length)
+    })
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') await ch.track({ userId: user?.id, isLeader })
+    })
+    channelRef.current = ch
+    return () => { supabase.removeChannel(ch); channelRef.current = null }
+  }, [syncEnabled, song?.id])
+
+  // Broadcast cuando el líder cambia el tono
+  const broadcastSemitones = async (newVal) => {
+    if (syncEnabled && isLeader && channelRef.current) {
+      await channelRef.current.send({ type: 'broadcast', event: 'key-change', payload: { semitones: newVal } })
+    }
+  }
+
+  const setAndBroadcastSemitones = (val) => {
+    const newVal = typeof val === 'function' ? val(semitones) : val
+    setSemitones(newVal)
+    broadcastSemitones(newVal)
+    // Guardar último tono
+    if (song?.id && song?.original_key) {
+      const newKey = KEYS[(KEYS.indexOf(song.original_key) + newVal + 120) % 12]
+      saveLastKey(song.id, newKey)
+    }
+  }
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // Cargar último tono usado
+  useEffect(() => {
+    if (!song?.id || !song?.original_key) return
+    getLastKey(song.id).then(savedKey => {
+      if (savedKey && savedKey !== song.original_key) {
+        const idx = KEYS.indexOf(savedKey)
+        const origIdx = KEYS.indexOf(song.original_key)
+        if (idx !== -1 && origIdx !== -1) {
+          const diff = ((idx - origIdx) + 12) % 12
+          setSemitones(diff > 6 ? diff - 12 : diff)
+        }
+      } else {
+        setSemitones(0)
+      }
+    })
+  }, [song?.id])
 
   useEffect(() => {
     if (!user || !song) return
@@ -84,18 +106,14 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
     supabase.from('song_key_history')
       .select('key_used, used_at, services(title)')
       .eq('song_id', song.id)
-      .order('used_at', { ascending: false })
-      .limit(10)
+      .order('used_at', { ascending: false }).limit(10)
       .then(({ data }) => setKeyHistory(data || []))
-  }, [song?.id, user?.id])
-
-  useEffect(() => {
-    setSemitones(0)
-    setBpm(song?.bpm || 0)
-    setBpmInput(song?.bpm || 0)
+    setBpm(song.bpm || 0)
+    setBpmInput(song.bpm || 0)
     setActiveTab('chords')
-    setPresSection(0)
-  }, [song?.id])
+    setPresentation(false)
+    setFullscreen(false)
+  }, [song?.id, user?.id])
 
   useEffect(() => {
     if (metronome && bpm > 0) {
@@ -106,28 +124,20 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
           if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)()
           const osc = audioCtx.current.createOscillator()
           const gain = audioCtx.current.createGain()
-          osc.connect(gain)
-          gain.connect(audioCtx.current.destination)
+          osc.connect(gain); gain.connect(audioCtx.current.destination)
           osc.frequency.value = 880
           gain.gain.setValueAtTime(0.3, audioCtx.current.currentTime)
           gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.current.currentTime + 0.1)
-          osc.start()
-          osc.stop(audioCtx.current.currentTime + 0.1)
+          osc.start(); osc.stop(audioCtx.current.currentTime + 0.1)
         } catch (e) {}
       }, interval)
-    } else {
-      clearInterval(metRef.current)
-      setBeat(false)
-    }
+    } else { clearInterval(metRef.current); setBeat(false) }
     return () => clearInterval(metRef.current)
   }, [metronome, bpm])
 
   const toggleFav = async () => {
-    if (isFav) {
-      await supabase.from('user_favorites').delete().eq('user_id', user.id).eq('song_id', song.id)
-    } else {
-      await supabase.from('user_favorites').insert({ user_id: user.id, song_id: song.id })
-    }
+    if (isFav) await supabase.from('user_favorites').delete().eq('user_id', user.id).eq('song_id', song.id)
+    else await supabase.from('user_favorites').insert({ user_id: user.id, song_id: song.id })
     setIsFav(!isFav)
   }
 
@@ -142,8 +152,7 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
     await supabase.from('song_notes').upsert({
       user_id: user.id, song_id: song.id, content: note, updated_at: new Date()
     }, { onConflict: 'user_id,song_id' })
-    setSavingNote(false)
-    setNoteSaved(true)
+    setSavingNote(false); setNoteSaved(true)
     setTimeout(() => setNoteSaved(false), 2000)
   }
 
@@ -151,219 +160,62 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
     ? KEYS[(KEYS.indexOf(song.original_key) + semitones + 120) % 12] : '?'
 
   const transposedText = transposeText(song?.chords, semitones)
-  const sections = parseSections(transposedText || song?.lyrics)
-  const namedSections = sections.filter(s => s.title)
 
-  const scrollToSection = (title) => {
-    sectionRefs.current[title]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // Swipe para cambiar canciones
+  const swipeHandlers = useSwipe({
+    onSwipeLeft: hasNext ? onNext : null,
+    onSwipeRight: hasPrev ? onPrev : null
+  })
+
+  const controlsProps = {
+    song, semitones, setSemitones: setAndBroadcastSemitones,
+    fontSize, setFontSize, bpm, bpmInput, setBpmInput, saveBpm,
+    metronome, setMetronome, beat, isFav, toggleFav,
+    onPresentation: () => setPresentation(true),
+    onNext, onPrev, hasNext, hasPrev, isMobile,
+    syncEnabled, setSyncEnabled, connectedUsers
   }
 
   if (!song) return null
 
-  const btnBase = {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    cursor: 'pointer', transition: 'all 0.2s'
+  // PRESENTACION
+  if (presentation) {
+    return (
+      <PresentationMode
+        song={song}
+        currentKey={currentKey}
+        text={transposedText || song?.lyrics || ''}
+        onClose={() => setPresentation(false)}
+      />
+    )
   }
 
-  const TransposeControls = ({ compact }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: compact ? '4px' : '12px' }}>
-      <button onClick={() => setSemitones(s => s - 1)} style={{
-        ...btnBase,
-        width: compact ? '26px' : '34px', height: compact ? '26px' : '34px',
-        borderRadius: '50%', background: 'rgba(0,212,255,0.1)',
-        border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff',
-        fontSize: compact ? '13px' : '18px'
-      }}>-</button>
-      <div style={{ textAlign: 'center', minWidth: compact ? '36px' : '60px' }}>
+  // VISTA MÓVIL EXPANDIDA (autoExpand)
+  if (autoExpand) {
+    return (
+      <div {...swipeHandlers}>
         <div style={{
-          fontFamily: 'Orbitron, sans-serif',
-          fontSize: compact ? '14px' : '22px',
-          fontWeight: '900', color: '#00d4ff',
-          textShadow: '0 0 20px rgba(0,212,255,0.5)'
-        }}>{currentKey}</div>
-        {!compact && (
-          <div style={{ color: '#64748b', fontSize: '10px', letterSpacing: '1px' }}>
-            {semitones === 0 ? 'ORIGINAL' : (semitones > 0 ? '+' : '') + semitones + ' ST'}
+          background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
+          borderRadius: '12px', padding: '16px', marginBottom: '16px'
+        }}>
+          <Controls {...controlsProps} compact={false} />
+        </div>
+
+        <div data-scroll-container style={{ paddingBottom: '40px' }}>
+          <LyricsView
+            text={transposedText || song?.lyrics || ''}
+            fontSize={fontSize}
+            autoScroll={true}
+            padding="0 4px"
+          />
+        </div>
+
+        {/* Swipe hint */}
+        {(hasNext || hasPrev) && (
+          <div style={{ textAlign: 'center', color: '#334155', fontSize: '11px', padding: '12px', letterSpacing: '1px' }}>
+            ← DESLIZA PARA CAMBIAR CANCIÓN →
           </div>
         )}
-      </div>
-      <button onClick={() => setSemitones(s => s + 1)} style={{
-        ...btnBase,
-        width: compact ? '26px' : '34px', height: compact ? '26px' : '34px',
-        borderRadius: '50%', background: 'rgba(0,212,255,0.1)',
-        border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff',
-        fontSize: compact ? '13px' : '18px'
-      }}>+</button>
-      <button onClick={() => setSemitones(0)} style={{
-        ...btnBase, padding: compact ? '2px 6px' : '5px 10px', borderRadius: '6px',
-        background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)',
-        color: '#a78bfa', fontSize: '10px'
-      }}>R</button>
-    </div>
-  )
-
-  // ===== LETRA ESTILO LACUERDA =====
-  const LyricsLaCuerda = ({ inModal = false }) => (
-    <div style={{ padding: inModal ? (isMobile ? '16px 14px' : '24px 40px') : '0' }}>
-      {sections.map((section, si) => (
-        <div
-          key={si}
-          ref={el => { if (section.title) sectionRefs.current[section.title] = el }}
-          style={{ marginBottom: '32px' }}
-        >
-          {/* Título de sección */}
-          {section.title && (
-            <div style={{
-              color: section.color,
-              fontSize: fontSize + 'px',
-              fontWeight: '700',
-              marginBottom: '8px',
-              letterSpacing: '0.5px'
-            }}>
-              {section.title}:
-            </div>
-          )}
-
-          {/* Líneas */}
-          {section.lines.map((line, li) => {
-            const chord = isChordLine(line)
-            const empty = line.trim() === ''
-            return (
-              <div key={li} style={{
-                fontFamily: 'monospace',
-                fontSize: chord ? (fontSize - 1) + 'px' : fontSize + 'px',
-                lineHeight: chord ? '1.4' : '1.8',
-                color: chord ? '#00d4ff' : '#e2e8f0',
-                fontWeight: chord ? '600' : '400',
-                marginBottom: empty ? '12px' : '0',
-                whiteSpace: 'pre',
-                letterSpacing: chord ? '0.5px' : '0'
-              }}>
-                {empty ? '\u00A0' : line}
-              </div>
-            )
-          })}
-        </div>
-      ))}
-    </div>
-  )
-
-  // MODO PRESENTACION
-  if (presentation) {
-    const allSections = sections.filter(s => s.lines.some(l => l.trim()))
-    const currentSection = allSections[presSection]
-    return (
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 200,
-        background: '#000', display: 'flex', flexDirection: 'column'
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 16px', background: 'rgba(255,255,255,0.04)',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-          flexShrink: 0, flexWrap: 'wrap', gap: '8px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontFamily: 'Orbitron, sans-serif', color: '#fff', fontSize: '12px' }}>
-              {song.title}
-            </span>
-            <span style={{ fontFamily: 'Orbitron, sans-serif', color: '#00d4ff', fontSize: '12px', fontWeight: '700' }}>
-              {currentKey}
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <button onClick={() => setPresFontSize(f => Math.max(16, f - 4))} style={{
-              background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff',
-              padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px'
-            }}>A-</button>
-            <span style={{ color: '#64748b', fontSize: '12px', minWidth: '24px', textAlign: 'center' }}>
-              {presFontSize}
-            </span>
-            <button onClick={() => setPresFontSize(f => Math.min(80, f + 4))} style={{
-              background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff',
-              padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px'
-            }}>A+</button>
-            <button onClick={() => setPresSection(i => Math.max(0, i - 1))}
-              disabled={presSection === 0} style={{
-                background: 'rgba(255,255,255,0.1)', border: 'none',
-                color: presSection === 0 ? '#333' : '#fff',
-                padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '15px'
-              }}>←</button>
-            <span style={{ color: '#555', fontSize: '12px' }}>
-              {presSection + 1}/{allSections.length}
-            </span>
-            <button onClick={() => setPresSection(i => Math.min(allSections.length - 1, i + 1))}
-              disabled={presSection === allSections.length - 1} style={{
-                background: 'rgba(255,255,255,0.1)', border: 'none',
-                color: presSection === allSections.length - 1 ? '#333' : '#fff',
-                padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '15px'
-              }}>→</button>
-            <button onClick={() => setPresentation(false)} style={{
-              background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)',
-              color: '#f87171', padding: '6px 12px', borderRadius: '6px',
-              cursor: 'pointer', fontSize: '12px', fontWeight: '600'
-            }}>SALIR</button>
-          </div>
-        </div>
-
-        <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          padding: '20px 16px', overflowY: 'auto'
-        }}>
-          {currentSection && (
-            <div style={{ width: '100%', maxWidth: '800px' }}>
-              {currentSection.title && (
-                <div style={{
-                  color: currentSection.color,
-                  fontSize: (presFontSize * 0.55) + 'px',
-                  fontWeight: '700', marginBottom: '16px',
-                  letterSpacing: '1px', textAlign: 'center'
-                }}>
-                  {currentSection.title}:
-                </div>
-              )}
-              {currentSection.lines.map((line, i) => {
-                const chord = isChordLine(line)
-                const empty = line.trim() === ''
-                return (
-                  <div key={i} style={{
-                    fontFamily: 'monospace',
-                    fontSize: chord
-                      ? (presFontSize * 0.55) + 'px'
-                      : presFontSize + 'px',
-                    lineHeight: chord ? '1.4' : '1.7',
-                    color: chord ? '#00d4ff' : '#ffffff',
-                    fontWeight: chord ? '600' : '600',
-                    marginBottom: empty ? (presFontSize * 0.5) + 'px' : '0',
-                    whiteSpace: 'pre-wrap',
-                    textAlign: 'center'
-                  }}>
-                    {empty ? '\u00A0' : line}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        <div style={{
-          display: 'flex', gap: '6px', padding: '10px 16px',
-          background: 'rgba(255,255,255,0.03)',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          justifyContent: 'center', flexWrap: 'wrap'
-        }}>
-          {allSections.map((s, i) => (
-            <button key={i} onClick={() => setPresSection(i)} style={{
-              padding: '5px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '11px',
-              background: presSection === i ? (s.color + '30') : 'rgba(255,255,255,0.05)',
-              border: '1px solid ' + (presSection === i ? s.color : 'rgba(255,255,255,0.1)'),
-              color: presSection === i ? s.color : '#555',
-              transition: 'all 0.2s', fontWeight: '600', letterSpacing: '1px',
-              textTransform: 'uppercase'
-            }}>{s.title || ('Parte ' + (i + 1))}</button>
-          ))}
-        </div>
       </div>
     )
   }
@@ -371,10 +223,13 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
   // FULLSCREEN
   if (fullscreen) {
     return (
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 100, background: '#020817',
-        display: 'flex', flexDirection: 'column', animation: 'fadeInUp 0.2s ease forwards'
-      }}>
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 100, background: '#020817',
+          display: 'flex', flexDirection: 'column', animation: 'fadeInUp 0.2s ease forwards'
+        }}
+        {...swipeHandlers}
+      >
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -385,96 +240,26 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
             <button onClick={toggleFav} style={{
               background: 'none', border: 'none', fontSize: '16px',
-              cursor: 'pointer', color: isFav ? '#f59e0b' : '#475569', flexShrink: 0
+              cursor: 'pointer', color: isFav ? '#f59e0b' : '#475569'
             }}>{isFav ? '★' : '☆'}</button>
             <div style={{ minWidth: 0 }}>
               <h2 style={{
-                fontFamily: 'Orbitron, sans-serif', fontSize: '12px',
-                color: '#e2e8f0', margin: 0,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                fontFamily: 'Orbitron, sans-serif', fontSize: '12px', color: '#e2e8f0',
+                margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
               }}>{song.title}</h2>
               <span style={{ color: '#64748b', fontSize: '10px' }}>
                 <span style={{ color: '#00d4ff' }}>{currentKey}</span>
-                {bpm > 0 && <span style={{ marginLeft: '6px', color: '#06ffa5' }}>{'♩' + bpm}</span>}
+                {bpm > 0 && <span style={{ marginLeft: '6px', color: '#06ffa5' }}>♩{bpm}</span>}
               </span>
             </div>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
-            <TransposeControls compact={true} />
-
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '2px',
-              padding: '3px 6px', borderRadius: '6px',
-              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)'
-            }}>
-              <button onClick={() => setFontSize(f => Math.max(10, f - 2))} style={{
-                background: 'none', border: 'none', color: '#94a3b8',
-                cursor: 'pointer', fontSize: '11px', padding: '0 2px'
-              }}>A-</button>
-              <span style={{ color: '#64748b', fontSize: '10px', minWidth: '18px', textAlign: 'center' }}>
-                {fontSize}
-              </span>
-              <button onClick={() => setFontSize(f => Math.min(28, f + 2))} style={{
-                background: 'none', border: 'none', color: '#94a3b8',
-                cursor: 'pointer', fontSize: '11px', padding: '0 2px'
-              }}>A+</button>
-            </div>
-
-            {!isMobile && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '4px',
-                padding: '3px 8px', borderRadius: '6px',
-                background: 'rgba(6,255,165,0.05)', border: '1px solid rgba(6,255,165,0.2)'
-              }}>
-                <input type="number" value={bpmInput} min="40" max="240"
-                  onChange={e => setBpmInput(e.target.value)}
-                  onBlur={saveBpm} onKeyDown={e => e.key === 'Enter' && saveBpm()}
-                  style={{
-                    width: '36px', background: 'none', border: 'none',
-                    color: '#06ffa5', fontFamily: 'Orbitron, sans-serif',
-                    fontSize: '11px', textAlign: 'center', outline: 'none'
-                  }}
-                />
-                <span style={{ color: '#64748b', fontSize: '9px' }}>BPM</span>
-                <button onClick={() => setMetronome(m => !m)} style={{
-                  ...btnBase, width: '22px', height: '22px', borderRadius: '50%',
-                  background: metronome
-                    ? (beat ? 'rgba(6,255,165,0.8)' : 'rgba(6,255,165,0.3)')
-                    : 'rgba(255,255,255,0.05)',
-                  border: '1px solid ' + (metronome ? 'rgba(6,255,165,0.6)' : 'rgba(255,255,255,0.1)'),
-                  fontSize: '10px', color: '#06ffa5'
-                }}>♩</button>
-              </div>
-            )}
-
-            <button onClick={() => setPresentation(true)} style={{
-              ...btnBase, padding: '4px 8px', borderRadius: '6px',
-              background: 'rgba(6,255,165,0.1)', border: '1px solid rgba(6,255,165,0.3)',
-              color: '#06ffa5', fontSize: '10px', fontWeight: '600'
-            }}>PRES</button>
-
-            {(hasPrev || hasNext) && (
-              <div style={{ display: 'flex', gap: '3px' }}>
-                <button onClick={onPrev} disabled={!hasPrev} style={{
-                  ...btnBase, padding: '4px 8px', borderRadius: '6px',
-                  background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
-                  color: hasPrev ? '#00d4ff' : '#1e3a4a',
-                  fontSize: '13px', cursor: hasPrev ? 'pointer' : 'default'
-                }}>←</button>
-                <button onClick={onNext} disabled={!hasNext} style={{
-                  ...btnBase, padding: '4px 8px', borderRadius: '6px',
-                  background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
-                  color: hasNext ? '#00d4ff' : '#1e3a4a',
-                  fontSize: '13px', cursor: hasNext ? 'pointer' : 'default'
-                }}>→</button>
-              </div>
-            )}
-
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Controls {...controlsProps} compact={true} />
             <button onClick={() => setFullscreen(false)} style={{
-              ...btnBase, width: '28px', height: '28px', borderRadius: '6px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px',
               background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-              color: '#f87171', fontSize: '14px'
+              color: '#f87171', fontSize: '14px', cursor: 'pointer'
             }}>x</button>
           </div>
         </div>
@@ -484,55 +269,29 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
           display: 'flex', borderBottom: '1px solid rgba(0,212,255,0.1)',
           background: 'rgba(0,0,0,0.2)', flexShrink: 0
         }}>
-          {['chords', 'notes', 'history'].map(tab => (
+          {['chords','notes','history'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding: '7px 12px', background: 'transparent', border: 'none',
               borderBottom: '2px solid ' + (activeTab === tab ? '#00d4ff' : 'transparent'),
               color: activeTab === tab ? '#00d4ff' : '#64748b',
               cursor: 'pointer', fontSize: '10px', fontWeight: '600',
-              letterSpacing: '1px', textTransform: 'uppercase', transition: 'all 0.2s'
+              letterSpacing: '1px', textTransform: 'uppercase'
             }}>
               {tab === 'chords' ? '♪ Acordes' : tab === 'notes' ? '✎ Notas' : '⏱ Historial'}
             </button>
           ))}
         </div>
 
-        {/* Índice secciones + canciones servicio */}
-        {activeTab === 'chords' && (namedSections.length > 0 || serviceSongs?.length > 0) && (
-          <div style={{
-            display: 'flex', gap: '6px', padding: '7px 12px',
-            overflowX: 'auto', flexShrink: 0,
-            borderBottom: '1px solid rgba(0,212,255,0.08)',
-            background: 'rgba(0,0,0,0.1)'
-          }}>
-            {namedSections.map((section, i) => (
-              <button key={i} onClick={() => scrollToSection(section.title)} style={{
-                flexShrink: 0, padding: '3px 10px', borderRadius: '20px', cursor: 'pointer',
-                background: section.color + '18', border: '1px solid ' + section.color + '40',
-                color: section.color, fontSize: '10px', fontWeight: '700',
-                letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap'
-              }}>{section.title}</button>
-            ))}
-            {namedSections.length > 0 && serviceSongs?.length > 0 && (
-              <div style={{ width: '1px', background: 'rgba(0,212,255,0.15)', flexShrink: 0, margin: '2px 4px' }} />
-            )}
-            {serviceSongs?.map((s, i) => s && (
-              <div key={i} style={{
-                flexShrink: 0, padding: '3px 10px', borderRadius: '20px',
-                background: s.id === song.id ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.03)',
-                border: '1px solid ' + (s.id === song.id ? 'rgba(0,212,255,0.35)' : 'rgba(255,255,255,0.07)'),
-                color: s.id === song.id ? '#00d4ff' : '#475569',
-                fontSize: '10px', whiteSpace: 'nowrap'
-              }}>
-                {(i + 1) + '. ' + s.title}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Contenido scroll libre */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {activeTab === 'chords' && <LyricsLaCuerda inModal={true} />}
+        {/* Contenido */}
+        <div style={{ flex: 1, overflowY: 'auto' }} data-scroll-container>
+          {activeTab === 'chords' && (
+            <LyricsView
+              text={transposedText || song?.lyrics || ''}
+              fontSize={fontSize}
+              autoScroll={true}
+              padding={isMobile ? '16px 14px' : '24px 40px'}
+            />
+          )}
 
           {activeTab === 'notes' && (
             <div style={{ padding: isMobile ? '16px 14px' : '24px 32px' }}>
@@ -570,18 +329,12 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
                       background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(0,212,255,0.08)'
                     }}>
                       <div>
-                        <p style={{ margin: '0 0 2px', fontSize: '13px', color: '#e2e8f0' }}>
-                          {h.services?.title || 'Servicio'}
-                        </p>
-                        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
-                          {new Date(h.used_at).toLocaleDateString('es-MX')}
-                        </p>
+                        <p style={{ margin: '0 0 2px', fontSize: '13px', color: '#e2e8f0' }}>{h.services?.title || 'Servicio'}</p>
+                        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>{new Date(h.used_at).toLocaleDateString('es-MX')}</p>
                       </div>
-                      <span style={{
-                        fontFamily: 'Orbitron, sans-serif', fontSize: '18px',
-                        fontWeight: '900', color: '#00d4ff',
-                        textShadow: '0 0 10px rgba(0,212,255,0.4)'
-                      }}>{h.key_used}</span>
+                      <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '18px', fontWeight: '900', color: '#00d4ff' }}>
+                        {h.key_used}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -593,7 +346,7 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
     )
   }
 
-  // Vista compacta
+  // VISTA COMPACTA (desktop)
   return (
     <div style={{
       background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
@@ -606,40 +359,51 @@ export default function SongViewer({ song, onNext, onPrev, hasNext, hasPrev, ser
           </h2>
           <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
             Tono: <span style={{ color: '#a78bfa' }}>{song.original_key || 'N/A'}</span>
-            {bpm > 0 && <span style={{ marginLeft: '12px', color: '#06ffa5' }}>{'♩ ' + bpm + ' BPM'}</span>}
+            {bpm > 0 && <span style={{ marginLeft: '12px', color: '#06ffa5' }}>♩ {bpm} BPM</span>}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button onClick={toggleFav} style={{
-            ...btnBase, width: '32px', height: '32px', borderRadius: '8px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: '32px', height: '32px', borderRadius: '8px',
             background: isFav ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)',
             border: '1px solid ' + (isFav ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.1)'),
-            fontSize: '14px', color: isFav ? '#f59e0b' : '#64748b'
+            fontSize: '14px', color: isFav ? '#f59e0b' : '#64748b', cursor: 'pointer'
           }}>{isFav ? '★' : '☆'}</button>
           <button onClick={() => setPresentation(true)} style={{
-            ...btnBase, padding: '6px 10px', borderRadius: '8px',
+            padding: '6px 10px', borderRadius: '8px', cursor: 'pointer',
             background: 'rgba(6,255,165,0.1)', border: '1px solid rgba(6,255,165,0.3)',
-            color: '#06ffa5', fontSize: '11px', fontWeight: '700', letterSpacing: '1px'
+            color: '#06ffa5', fontSize: '11px', fontWeight: '700'
           }}>PRESENTAR</button>
           <button onClick={() => setFullscreen(true)} style={{
-            ...btnBase, padding: '6px 10px', borderRadius: '8px',
+            padding: '6px 10px', borderRadius: '8px', cursor: 'pointer',
             background: 'linear-gradient(135deg, rgba(0,212,255,0.15), rgba(124,58,237,0.15))',
             border: '1px solid rgba(0,212,255,0.3)', color: '#00d4ff',
-            fontSize: '11px', fontWeight: '700', letterSpacing: '1px'
+            fontSize: '11px', fontWeight: '700'
           }}>VER COMPLETA</button>
         </div>
       </div>
 
       <div style={{
         background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.15)',
-        borderRadius: '10px', padding: '12px 16px', marginBottom: '12px'
+        borderRadius: '10px', padding: '12px 16px', marginBottom: '16px'
       }}>
-        <TransposeControls compact={false} />
+        <Controls {...controlsProps} compact={true} />
+      </div>
+
+      {/* Preview letra */}
+      <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+        <LyricsView
+          text={transposedText || song?.lyrics || ''}
+          fontSize={fontSize}
+          autoScroll={false}
+          padding="0"
+        />
       </div>
 
       {song.youtube_url && (
         <a href={song.youtube_url} target="_blank" rel="noopener noreferrer" style={{
-          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          display: 'inline-flex', alignItems: 'center', gap: '8px', marginTop: '12px',
           padding: '6px 12px', borderRadius: '8px',
           background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
           color: '#f87171', textDecoration: 'none', fontSize: '11px', fontWeight: '600'
