@@ -1,108 +1,102 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { openDB } from 'idb'
 
 const AuthContext = createContext({})
 
-const DB_NAME = 'worship-cache'
-const getDB = () => openDB(DB_NAME, 1, {
-  upgrade(db) {
-    if (!db.objectStoreNames.contains('songs')) db.createObjectStore('songs', { keyPath: 'id' })
-    if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta')
-  }
-})
+const SESSION_KEY = 'worship_user'
+const PROFILE_KEY = 'worship_profile'
 
-const saveProfileCache = async (profile) => {
-  try { const db = await getDB(); await db.put('meta', profile, 'cached_profile') } catch (e) {}
+const saveLocal = (key, val) => {
+  try { localStorage.setItem(key, JSON.stringify(val)) } catch (e) {}
 }
-const getProfileCache = async () => {
-  try { const db = await getDB(); return await db.get('meta', 'cached_profile') } catch (e) { return null }
-}
-const saveSessionCache = (user) => {
-  try { localStorage.setItem('worship_session', JSON.stringify({ user, savedAt: Date.now() })) } catch (e) {}
-}
-const getSessionCache = () => {
+const loadLocal = (key) => {
   try {
-    const raw = localStorage.getItem('worship_session')
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    if (Date.now() - parsed.savedAt > 30 * 24 * 60 * 60 * 1000) {
-      localStorage.removeItem('worship_session')
-      return null
-    }
-    return parsed
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : null
   } catch (e) { return null }
 }
-const clearSessionCache = () => { try { localStorage.removeItem('worship_session') } catch (e) {} }
+const clearLocal = () => {
+  try {
+    localStorage.removeItem(SESSION_KEY)
+    localStorage.removeItem(PROFILE_KEY)
+  } catch (e) {}
+}
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
+  const [user, setUser] = useState(() => loadLocal(SESSION_KEY))
+  const [profile, setProfile] = useState(() => loadLocal(PROFILE_KEY))
   const [loading, setLoading] = useState(true)
   const [isOfflineAuth, setIsOfflineAuth] = useState(false)
 
   useEffect(() => {
-    const init = async () => {
-      // 1. PRIMERO cargar caché local — instantáneo, sin esperar red
-      const cachedSession = getSessionCache()
-      const cachedProfile = await getProfileCache()
-
-      if (cachedSession?.user && cachedProfile) {
-        // Mostrar app de inmediato con datos cacheados
-        setUser(cachedSession.user)
-        setProfile(cachedProfile)
-        setLoading(false) // <-- app visible YA
-
-        // 2. EN BACKGROUND: intentar actualizar desde red
-        try {
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session?.user) {
-            setUser(session.user)
-            saveSessionCache(session.user)
-            setIsOfflineAuth(false)
-            // Actualizar perfil en background sin bloquear UI
-            supabase.from('profiles').select('*').eq('id', session.user.id).single()
-              .then(({ data }) => {
-                if (data) { setProfile(data); saveProfileCache(data) }
-              })
-          } else {
-            // Sesión expiró en servidor
-            setUser(null); setProfile(null)
-            clearSessionCache()
-          }
-        } catch (e) {
-          // Sin internet — quedarse con caché, marcar offline
-          setIsOfflineAuth(true)
-        }
-        return
-      }
-
-      // 3. Sin caché — necesita internet para login
+    const verify = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
+        const { data: { session }, error } = await supabase.auth.getSession()
+
+        if (error || !session) {
+          if (!navigator.onLine) {
+            // Sin internet y sin sesión de Supabase — usar caché si existe
+            const cachedUser = loadLocal(SESSION_KEY)
+            if (cachedUser) {
+              setIsOfflineAuth(true)
+            } else {
+              clearLocal()
+              setUser(null)
+              setProfile(null)
+            }
+          } else {
+            // Online pero sin sesión válida — limpiar
+            clearLocal()
+            setUser(null)
+            setProfile(null)
+          }
+        } else {
+          // Sesión válida
           setUser(session.user)
-          saveSessionCache(session.user)
-          const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-          if (data) { setProfile(data); saveProfileCache(data) }
+          saveLocal(SESSION_KEY, session.user)
+          setIsOfflineAuth(false)
+
+          // Actualizar perfil en background sin bloquear
+          supabase.from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+            .then(({ data }) => {
+              if (data) {
+                setProfile(data)
+                saveLocal(PROFILE_KEY, data)
+              }
+            })
         }
-      } catch (e) {}
-      setLoading(false)
+      } catch (e) {
+        // Error de red — mantener caché
+        setIsOfflineAuth(true)
+      } finally {
+        setLoading(false)
+      }
     }
 
-    init()
+    verify()
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         setUser(session.user)
-        saveSessionCache(session.user)
+        saveLocal(SESSION_KEY, session.user)
         setIsOfflineAuth(false)
-        const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-        if (data) { setProfile(data); saveProfileCache(data) }
+        const { data } = await supabase.from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+        if (data) {
+          setProfile(data)
+          saveLocal(PROFILE_KEY, data)
+        }
       } else {
-        setUser(null); setProfile(null)
-        setIsOfflineAuth(false)
-        clearSessionCache()
+        if (navigator.onLine) {
+          clearLocal()
+          setUser(null)
+          setProfile(null)
+        }
       }
     })
 
@@ -112,16 +106,24 @@ export const AuthProvider = ({ children }) => {
   const signIn = async (email, password) => {
     const result = await supabase.auth.signInWithPassword({ email, password })
     if (result.data?.session) {
-      saveSessionCache(result.data.session.user)
-      const { data } = await supabase.from('profiles').select('*').eq('id', result.data.session.user.id).single()
-      if (data) { setProfile(data); saveProfileCache(data) }
+      setUser(result.data.session.user)
+      saveLocal(SESSION_KEY, result.data.session.user)
+      const { data } = await supabase.from('profiles')
+        .select('*')
+        .eq('id', result.data.session.user.id)
+        .single()
+      if (data) {
+        setProfile(data)
+        saveLocal(PROFILE_KEY, data)
+      }
     }
     return result
   }
 
   const signOut = async () => {
-    clearSessionCache()
-    setUser(null); setProfile(null)
+    clearLocal()
+    setUser(null)
+    setProfile(null)
     try { await supabase.auth.signOut() } catch (e) {}
   }
 
@@ -139,13 +141,20 @@ export const AuthProvider = ({ children }) => {
     }}>
       {loading ? (
         <div style={{
-          minHeight: '100vh', background: '#020817',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: '12px'
+          minHeight: '100vh',
+          background: '#020817',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px'
         }}>
-          <div style={{ fontFamily: 'Orbitron, sans-serif', color: '#00d4ff', fontSize: '14px', letterSpacing: '3px' }}>
-            CARGANDO...
-          </div>
+          <div style={{
+            fontFamily: 'Orbitron, sans-serif',
+            color: '#00d4ff',
+            fontSize: '14px',
+            letterSpacing: '3px'
+          }}>CARGANDO...</div>
         </div>
       ) : children}
     </AuthContext.Provider>
