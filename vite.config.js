@@ -9,16 +9,18 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['logo.png', 'favicon.ico'],
       manifest: {
-        name: 'Worship App',
+        name: 'Hageo 2:9 Worship',
         short_name: 'Worship',
         description: 'App de gestión de servicios de iglesia',
         theme_color: '#020817',
         background_color: '#020817',
         display: 'standalone',
         orientation: 'portrait',
+        start_url: '/',
+        scope: '/',
         icons: [
-          { src: 'logo.png', sizes: '192x192', type: 'image/png' },
-          { src: 'logo.png', sizes: '512x512', type: 'image/png' }
+          { src: 'logo.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          { src: 'logo.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
         ]
       },
       workbox: {
@@ -29,7 +31,7 @@ export default defineConfig({
             handler: 'NetworkFirst',
             options: {
               cacheName: 'supabase-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 }
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 }
             }
           }
         ]
