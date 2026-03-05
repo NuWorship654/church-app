@@ -15,7 +15,15 @@ export default function Rehearsals() {
   const [showAddSong, setShowAddSong] = useState(false)
   const [activeSongIndex, setActiveSongIndex] = useState(0)
   const [showDetail, setShowDetail] = useState(false)
+  const [searchSong, setSearchSong] = useState('')
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   const { canEdit } = useAuth()
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   useEffect(() => { fetchRehearsals(); fetchAllSongs() }, [])
 
@@ -42,6 +50,7 @@ export default function Rehearsals() {
     setSelected(r)
     setActiveSongIndex(0)
     setShowAddSong(false)
+    setSearchSong('')
     fetchRehearsalSongs(r.id)
     setShowDetail(true)
   }
@@ -58,6 +67,7 @@ export default function Rehearsals() {
       rehearsal_id: selected.id, song_id: songId, order_index: songs.length
     })
     setShowAddSong(false)
+    setSearchSong('')
     const { data } = await supabase
       .from('rehearsal_songs').select('*, songs(*)')
       .eq('rehearsal_id', selected.id).order('order_index')
@@ -78,94 +88,144 @@ export default function Rehearsals() {
     })
   }
 
-  const availableSongs = allSongs.filter(s => !songs.find(ss => ss.song_id === s.id))
+  const availableSongs = allSongs.filter(s =>
+    !songs.find(ss => ss.song_id === s.id) &&
+    s.title.toLowerCase().includes(searchSong.toLowerCase())
+  )
+
   const activeSong = songs[activeSongIndex]?.songs || null
+  const hasPrev = activeSongIndex > 0
+  const hasNext = activeSongIndex < songs.length - 1
+  const goNext = () => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))
+  const goPrev = () => setActiveSongIndex(i => Math.max(0, i - 1))
 
   const upcoming = rehearsals.filter(r => dayjs(r.date).isAfter(dayjs().subtract(1, 'day')))
   const past = rehearsals.filter(r => dayjs(r.date).isBefore(dayjs().subtract(1, 'day')))
 
-  const labelStyle = {
-    color: '#64748b', fontSize: '10px',
-    letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 10px'
-  }
-
   const DetailPanel = () => (
     <div style={{
       background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(245,158,11,0.2)',
-      borderRadius: '12px', padding: '20px'
+      borderRadius: '12px', overflow: 'hidden',
+      animation: 'fadeInUp 0.3s ease forwards'
     }}>
-      <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '16px', color: '#e2e8f0', margin: '0 0 4px' }}>
-        {selected.title}
-      </h2>
-      <p style={{ color: '#f59e0b', fontSize: '12px', margin: '0 0 2px' }}>
-        {dayjs(selected.date).format('DD/MM/YYYY HH:mm')}
-      </p>
-      {selected.location && (
-        <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 12px' }}>
-          {'📍 ' + selected.location}
-        </p>
-      )}
-      {selected.description && (
-        <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 16px' }}>{selected.description}</p>
-      )}
+      {/* Header del ensayo */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(6,255,165,0.06))',
+        borderBottom: '1px solid rgba(245,158,11,0.15)',
+        padding: '16px 20px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '15px', color: '#e2e8f0', margin: '0 0 4px' }}>
+              {selected.title}
+            </h2>
+            <p style={{ color: '#f59e0b', fontSize: '12px', margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              📅 {dayjs(selected.date).format('DD/MM/YYYY HH:mm')}
+            </p>
+            {selected.location && (
+              <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+                📍 {selected.location}
+              </p>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {canEdit && (
+              <button onClick={() => { setEditing(selected); setShowForm(true) }} style={{
+                padding: '5px 10px', borderRadius: '6px', cursor: 'pointer',
+                background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+                color: '#f59e0b', fontSize: '11px', fontWeight: '600'
+              }}>✎ EDITAR</button>
+            )}
+          </div>
+        </div>
+        {selected.description && (
+          <p style={{
+            color: '#94a3b8', fontSize: '12px', margin: '10px 0 0',
+            padding: '8px 12px', borderRadius: '8px',
+            background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)'
+          }}>{selected.description}</p>
+        )}
+      </div>
 
-      <div style={{ borderTop: '1px solid rgba(245,158,11,0.1)', paddingTop: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <p style={labelStyle}>{'CANCIONES (' + songs.length + ')'}</p>
+      {/* Canciones */}
+      <div style={{ padding: '16px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+          <p style={{ color: '#f59e0b', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: 0 }}>
+            ♪ CANCIONES ({songs.length})
+          </p>
           {canEdit && (
-            <button onClick={() => setShowAddSong(!showAddSong)} style={{
-              background: 'none', border: 'none', color: '#f59e0b',
-              cursor: 'pointer', fontSize: '12px', fontWeight: '600', letterSpacing: '1px'
-            }}>+ AGREGAR</button>
+            <button onClick={() => { setShowAddSong(!showAddSong); setSearchSong('') }} style={{
+              padding: '4px 12px', borderRadius: '20px', cursor: 'pointer',
+              background: showAddSong ? 'rgba(6,255,165,0.15)' : 'rgba(245,158,11,0.1)',
+              border: '1px solid ' + (showAddSong ? 'rgba(6,255,165,0.4)' : 'rgba(245,158,11,0.3)'),
+              color: showAddSong ? '#06ffa5' : '#f59e0b',
+              fontSize: '11px', fontWeight: '700', letterSpacing: '1px', transition: 'all 0.2s'
+            }}>
+              {showAddSong ? '✕ CERRAR' : '+ AGREGAR'}
+            </button>
           )}
         </div>
 
+        {/* Buscador agregar canción */}
         {showAddSong && (
           <div style={{
-            background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(245,158,11,0.2)',
-            borderRadius: '8px', padding: '12px', marginBottom: '10px'
+            background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(6,255,165,0.2)',
+            borderRadius: '10px', padding: '12px', marginBottom: '14px',
+            animation: 'fadeInUp 0.2s ease forwards'
           }}>
-            <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <p style={{ color: '#06ffa5', fontSize: '10px', letterSpacing: '1px', margin: '0 0 8px', textTransform: 'uppercase' }}>
+              SELECCIONA UNA CANCIÓN
+            </p>
+            <input
+              type="text" placeholder="Buscar canción..."
+              value={searchSong} onChange={e => setSearchSong(e.target.value)}
+              className="input-field" style={{ marginBottom: '8px', fontSize: '13px' }}
+            />
+            <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {availableSongs.map(song => (
                 <button key={song.id} onClick={() => addSong(song.id)} style={{
-                  textAlign: 'left', padding: '8px 12px', borderRadius: '6px',
+                  textAlign: 'left', padding: '9px 12px', borderRadius: '7px',
                   background: 'transparent', border: '1px solid transparent',
-                  color: '#e2e8f0', cursor: 'pointer', fontSize: '13px', transition: 'all 0.2s',
+                  color: '#e2e8f0', cursor: 'pointer', fontSize: '13px', transition: 'all 0.15s',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between'
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; e.currentTarget.style.borderColor = 'rgba(245,158,11,0.2)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(6,255,165,0.07)'; e.currentTarget.style.borderColor = 'rgba(6,255,165,0.2)' }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}>
                   <span>{song.title}</span>
                   <span style={{
                     fontSize: '10px', padding: '2px 8px', borderRadius: '20px',
                     background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)',
-                    color: '#a78bfa'
-                  }}>{song.original_key}</span>
+                    color: '#a78bfa', flexShrink: 0
+                  }}>{song.original_key || '?'}</span>
                 </button>
               ))}
               {availableSongs.length === 0 && (
-                <p style={{ color: '#475569', fontSize: '12px', margin: 0 }}>No hay mas canciones</p>
+                <p style={{ color: '#475569', fontSize: '12px', margin: 0, padding: '8px', textAlign: 'center' }}>
+                  {searchSong ? 'Sin resultados' : 'No hay más canciones'}
+                </p>
               )}
             </div>
           </div>
         )}
 
+        {/* Tabs canciones */}
         {songs.length > 0 && (
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', overflowX: 'auto', paddingBottom: '4px' }}>
             {songs.map((ss, i) => (
               <button key={ss.id} onClick={() => setActiveSongIndex(i)} style={{
                 flexShrink: 0, padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
                 background: activeSongIndex === i ? 'rgba(245,158,11,0.15)' : 'rgba(0,0,0,0.3)',
                 border: '1px solid ' + (activeSongIndex === i ? 'rgba(245,158,11,0.5)' : 'rgba(245,158,11,0.1)'),
-                transition: 'all 0.2s'
+                transition: 'all 0.2s',
+                boxShadow: activeSongIndex === i ? '0 0 12px rgba(245,158,11,0.1)' : 'none'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{
-                    width: '16px', height: '16px', borderRadius: '50%',
+                    width: '16px', height: '16px', borderRadius: '50%', flexShrink: 0,
                     background: activeSongIndex === i ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.05)',
                     border: '1px solid ' + (activeSongIndex === i ? 'rgba(245,158,11,0.6)' : 'rgba(255,255,255,0.1)'),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '9px', color: activeSongIndex === i ? '#f59e0b' : '#64748b', flexShrink: 0
+                    fontSize: '9px', color: activeSongIndex === i ? '#f59e0b' : '#64748b'
                   }}>{i + 1}</span>
                   <div style={{ textAlign: 'left' }}>
                     <p style={{
@@ -179,11 +239,12 @@ export default function Rehearsals() {
                     </p>
                   </div>
                   {canEdit && (
-                    <span onClick={e => { e.stopPropagation(); removeSong(ss.id, i) }} style={{
-                      color: '#475569', cursor: 'pointer', fontSize: '11px', padding: '2px 3px', transition: 'color 0.2s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#475569'}>x</span>
+                    <span
+                      onClick={e => { e.stopPropagation(); removeSong(ss.id, i) }}
+                      style={{ color: '#475569', cursor: 'pointer', fontSize: '11px', padding: '2px 4px', transition: 'color 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+                    >x</span>
                   )}
                 </div>
               </button>
@@ -192,50 +253,31 @@ export default function Rehearsals() {
         )}
 
         {songs.length === 0 && !showAddSong && (
-          <div style={{ textAlign: 'center', padding: '20px', color: '#475569' }}>
-            <p style={{ margin: '0 0 10px', fontSize: '13px' }}>No hay canciones asignadas</p>
+          <div style={{ textAlign: 'center', padding: '30px', color: '#475569' }}>
+            <div style={{ fontSize: '32px', marginBottom: '8px', opacity: 0.3 }}>🎸</div>
+            <p style={{ margin: '0 0 12px', fontSize: '13px' }}>No hay canciones asignadas</p>
             {canEdit && (
               <button onClick={() => setShowAddSong(true)} style={{
-                padding: '7px 16px', borderRadius: '8px', cursor: 'pointer',
+                padding: '8px 20px', borderRadius: '8px', cursor: 'pointer',
                 background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
                 color: '#f59e0b', fontSize: '12px', fontWeight: '600'
-              }}>+ AGREGAR CANCION</button>
+              }}>+ AGREGAR CANCIÓN</button>
             )}
           </div>
         )}
 
+        {/* SongViewer igual que en Canciones */}
         {activeSong && songs.length > 0 && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <button onClick={() => setActiveSongIndex(i => Math.max(0, i - 1))}
-                disabled={activeSongIndex === 0} style={{
-                  padding: '5px 12px', borderRadius: '6px',
-                  cursor: activeSongIndex === 0 ? 'default' : 'pointer',
-                  background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.15)',
-                  color: activeSongIndex === 0 ? '#1e3a4a' : '#f59e0b',
-                  fontSize: '12px', fontWeight: '600'
-                }}>← ANT</button>
-              <span style={{ color: '#64748b', fontSize: '11px' }}>
-                {(activeSongIndex + 1) + ' / ' + songs.length}
-              </span>
-              <button onClick={() => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))}
-                disabled={activeSongIndex === songs.length - 1} style={{
-                  padding: '5px 12px', borderRadius: '6px',
-                  cursor: activeSongIndex === songs.length - 1 ? 'default' : 'pointer',
-                  background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.15)',
-                  color: activeSongIndex === songs.length - 1 ? '#1e3a4a' : '#f59e0b',
-                  fontSize: '12px', fontWeight: '600'
-                }}>SIG →</button>
-            </div>
-            <SongViewer
-              song={activeSong}
-              hasNext={activeSongIndex < songs.length - 1}
-              hasPrev={activeSongIndex > 0}
-              onNext={() => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))}
-              onPrev={() => setActiveSongIndex(i => Math.max(0, i - 1))}
-              serviceSongs={songs.map(ss => ss.songs)}
-            />
-          </div>
+          <SongViewer
+            key={activeSong.id}
+            song={activeSong}
+            autoExpand={isMobile}
+            hasNext={hasNext}
+            hasPrev={hasPrev}
+            onNext={goNext}
+            onPrev={goPrev}
+            serviceSongs={songs.map(ss => ss.songs)}
+          />
         )}
       </div>
     </div>
@@ -243,6 +285,7 @@ export default function Rehearsals() {
 
   return (
     <div style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ width: '8px', height: '40px', borderRadius: '4px', background: 'linear-gradient(180deg, #f59e0b, #06ffa5)' }} />
@@ -257,6 +300,7 @@ export default function Rehearsals() {
         )}
       </div>
 
+      {/* Vista móvil detalle */}
       {showDetail && selected ? (
         <div>
           <button onClick={() => setShowDetail(false)} style={{
@@ -268,16 +312,23 @@ export default function Rehearsals() {
         </div>
       ) : (
         <div className="rehearsals-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '20px' }}>
+
+          {/* Lista */}
           <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
             {loading ? (
               <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>Cargando...</div>
             ) : rehearsals.length === 0 ? (
-              <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>No hay ensayos aun</div>
+              <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>
+                <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.3 }}>🎸</div>
+                <p style={{ margin: 0 }}>No hay ensayos aún</p>
+              </div>
             ) : (
               <>
                 {upcoming.length > 0 && (
                   <>
-                    <p style={{ color: '#f59e0b', fontSize: '11px', letterSpacing: '2px', margin: '0 0 10px', textTransform: 'uppercase' }}>PROXIMOS</p>
+                    <p style={{ color: '#f59e0b', fontSize: '11px', letterSpacing: '2px', margin: '0 0 10px', textTransform: 'uppercase' }}>
+                      PRÓXIMOS
+                    </p>
                     {upcoming.map((r, i) => (
                       <RehearsalCard key={r.id} rehearsal={r} selected={selected}
                         onSelect={selectRehearsal} canEdit={canEdit}
@@ -288,7 +339,9 @@ export default function Rehearsals() {
                 )}
                 {past.length > 0 && (
                   <>
-                    <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', margin: '16px 0 10px', textTransform: 'uppercase' }}>ANTERIORES</p>
+                    <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', margin: '16px 0 10px', textTransform: 'uppercase' }}>
+                      ANTERIORES
+                    </p>
                     {past.map((r, i) => (
                       <RehearsalCard key={r.id} rehearsal={r} selected={selected}
                         onSelect={selectRehearsal} canEdit={canEdit}
@@ -301,6 +354,7 @@ export default function Rehearsals() {
             )}
           </div>
 
+          {/* Panel desktop */}
           <div className="rehearsals-detail-desktop">
             {selected ? (
               <DetailPanel />
@@ -318,9 +372,11 @@ export default function Rehearsals() {
       )}
 
       {showForm && (
-        <RehearsalForm rehearsal={editing}
+        <RehearsalForm
+          rehearsal={editing}
           onClose={() => setShowForm(false)}
-          onSaved={() => { fetchRehearsals(); setShowForm(false) }} />
+          onSaved={() => { fetchRehearsals(); setShowForm(false) }}
+        />
       )}
     </div>
   )
@@ -345,10 +401,10 @@ function RehearsalCard({ rehearsal, selected, onSelect, canEdit, onEdit, onDelet
             {rehearsal.title}
           </p>
           <p style={{ margin: '0 0 2px', color: '#f59e0b', fontSize: '12px' }}>
-            {dayjs(rehearsal.date).format('DD/MM/YYYY HH:mm')}
+            📅 {dayjs(rehearsal.date).format('DD/MM/YYYY HH:mm')}
           </p>
           {rehearsal.location && (
-            <p style={{ margin: 0, color: '#64748b', fontSize: '12px' }}>{'📍 ' + rehearsal.location}</p>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '12px' }}>📍 {rehearsal.location}</p>
           )}
         </div>
         {canEdit && (
@@ -365,21 +421,25 @@ function RehearsalCard({ rehearsal, selected, onSelect, canEdit, onEdit, onDelet
 function RehearsalForm({ rehearsal, onClose, onSaved }) {
   const { user } = useAuth()
   const [form, setForm] = useState({
-    title: rehearsal?.title || '',
-    date: rehearsal?.date ? dayjs(rehearsal.date).format('YYYY-MM-DDTHH:mm') : '',
-    location: rehearsal?.location || '',
+    title:       rehearsal?.title       || '',
+    date:        rehearsal?.date ? dayjs(rehearsal.date).format('YYYY-MM-DDTHH:mm') : '',
+    location:    rehearsal?.location    || '',
     description: rehearsal?.description || ''
   })
   const [saving, setSaving] = useState(false)
 
+  const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
+
   const handleSubmit = async e => {
-    e.preventDefault(); setSaving(true)
+    e.preventDefault()
+    setSaving(true)
     if (rehearsal) {
-      await supabase.from('rehearsals').update(form).eq('id', rehearsal.id)
+      await supabase.from('rehearsals').update({ ...form, updated_at: new Date() }).eq('id', rehearsal.id)
     } else {
       await supabase.from('rehearsals').insert({ ...form, created_by: user.id })
     }
-    setSaving(false); onSaved()
+    setSaving(false)
+    onSaved()
   }
 
   const labelStyle = {
@@ -389,55 +449,95 @@ function RehearsalForm({ rehearsal, onClose, onSaved }) {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 50, padding: '16px', backdropFilter: 'blur(4px)'
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)',
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      zIndex: 50, padding: '16px', backdropFilter: 'blur(6px)', overflowY: 'auto'
     }}>
       <div style={{
-        background: '#0d1b2a', border: '1px solid rgba(245,158,11,0.3)',
-        borderRadius: '16px', width: '100%', maxWidth: '500px',
-        maxHeight: '90vh', overflowY: 'auto',
-        boxShadow: '0 0 60px rgba(245,158,11,0.1)',
-        animation: 'fadeInUp 0.3s ease forwards'
+        background: 'linear-gradient(135deg, #0d1b2a 0%, #0a1628 100%)',
+        border: '1px solid rgba(245,158,11,0.25)',
+        borderRadius: '20px', width: '100%', maxWidth: '520px',
+        boxShadow: '0 0 80px rgba(245,158,11,0.06), 0 0 40px rgba(0,0,0,0.5)',
+        animation: 'fadeInUp 0.3s ease forwards', margin: 'auto',
+        overflow: 'hidden'
       }}>
-        <div style={{ padding: '28px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-            <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '16px', color: '#f59e0b', margin: 0 }}>
-              {rehearsal ? 'EDITAR ENSAYO' : 'NUEVO ENSAYO'}
-            </h2>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>x</button>
-          </div>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* Banner top */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(6,255,165,0.08))',
+          borderBottom: '1px solid rgba(245,158,11,0.15)',
+          padding: '20px 24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '36px', height: '36px', borderRadius: '10px',
+              background: 'linear-gradient(135deg, rgba(245,158,11,0.2), rgba(6,255,165,0.1))',
+              border: '1px solid rgba(245,158,11,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px'
+            }}>🎸</div>
             <div>
-              <label style={labelStyle}>Titulo *</label>
-              <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#f59e0b', margin: 0, letterSpacing: '1px' }}>
+                {rehearsal ? 'EDITAR ENSAYO' : 'NUEVO ENSAYO'}
+              </h2>
+              <p style={{ color: '#475569', fontSize: '11px', margin: 0 }}>
+                {rehearsal ? 'Modifica los datos del ensayo' : 'Programa un nuevo ensayo'}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{
+            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+            color: '#f87171', fontSize: '18px', cursor: 'pointer',
+            width: '32px', height: '32px', borderRadius: '8px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>×</button>
+        </div>
+
+        <div style={{ padding: '24px' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <div>
+              <label style={labelStyle}>Título *</label>
+              <input value={form.title} onChange={e => set('title', e.target.value)}
                 required className="input-field" placeholder="Ej: Ensayo dominical" />
             </div>
             <div>
-              <label style={labelStyle}>Fecha y hora *</label>
+              <label style={labelStyle}>📅 Fecha y hora *</label>
               <input type="datetime-local" value={form.date}
-                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                onChange={e => set('date', e.target.value)}
                 required className="input-field" />
             </div>
             <div>
-              <label style={labelStyle}>Lugar</label>
-              <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                className="input-field" placeholder="Ej: Salon de musica" />
+              <label style={labelStyle}>📍 Lugar</label>
+              <input value={form.location} onChange={e => set('location', e.target.value)}
+                className="input-field" placeholder="Ej: Salón de música" />
             </div>
             <div>
-              <label style={labelStyle}>Descripcion</label>
-              <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                rows={3} className="input-field" style={{ resize: 'vertical' }}
-                placeholder="Detalles del ensayo..." />
+              <label style={labelStyle}>📝 Descripción</label>
+              <textarea value={form.description} onChange={e => set('description', e.target.value)}
+                rows={3} className="input-field"
+                style={{ resize: 'vertical', lineHeight: '1.6' }}
+                placeholder="Canciones a ensayar, notas, detalles..." />
             </div>
+
+            <div style={{ height: '1px', background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.2), transparent)' }} />
+
             <div style={{ display: 'flex', gap: '12px' }}>
               <button type="button" onClick={onClose} style={{
-                flex: 1, padding: '12px', borderRadius: '8px', cursor: 'pointer',
-                background: 'transparent', border: '1px solid rgba(100,116,139,0.4)',
-                color: '#94a3b8', fontFamily: 'Rajdhani, sans-serif', fontSize: '14px', fontWeight: '600'
+                flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer',
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(100,116,139,0.3)',
+                color: '#64748b', fontSize: '13px', fontWeight: '600', letterSpacing: '1px'
               }}>CANCELAR</button>
-              <button type="submit" disabled={saving} className="btn-primary" style={{ flex: 1, padding: '12px' }}>
-                {saving ? 'GUARDANDO...' : rehearsal ? 'GUARDAR' : 'CREAR ENSAYO'}
+              <button type="submit" disabled={saving} style={{
+                flex: 2, padding: '12px', borderRadius: '10px',
+                cursor: saving ? 'not-allowed' : 'pointer',
+                background: saving ? 'rgba(245,158,11,0.1)' : 'linear-gradient(135deg, #f59e0b, #06ffa5)',
+                border: saving ? '1px solid rgba(245,158,11,0.2)' : 'none',
+                color: saving ? '#f59e0b' : '#0d1b2a',
+                fontSize: '13px', fontWeight: '700', letterSpacing: '1px',
+                boxShadow: saving ? 'none' : '0 4px 20px rgba(245,158,11,0.2)',
+                transition: 'all 0.3s'
+              }}>
+                {saving ? 'GUARDANDO...' : rehearsal ? 'GUARDAR CAMBIOS' : 'CREAR ENSAYO'}
               </button>
             </div>
           </form>
