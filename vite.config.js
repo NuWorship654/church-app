@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['logo.png', 'favicon.ico'],
       manifest: {
-        name: 'Hageo 2:9 Worship',
-        short_name: 'Worship',
+        name: 'NuWorship',
+        short_name: 'NuWorship',
         description: 'App de gestión de servicios de iglesia',
         theme_color: '#020817',
         background_color: '#020817',
