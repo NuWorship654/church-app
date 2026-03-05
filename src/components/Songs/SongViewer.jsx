@@ -4,8 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { saveLastKey, getLastKey } from '../../lib/songCache'
 import { useSwipe } from '../../hooks/useSwipe'
-import { useRealtimeKey } from '../../hooks/useRealtimeKey'
-import Controls from './SongControls'
+import SongControls from './SongControls'
 import LyricsView from './LyricsView'
 import PresentationMode from './PresentationMode'
 
@@ -35,9 +34,15 @@ export default function SongViewer({
   const [connectedUsers, setConnectedUsers] = useState(0)
   const metRef = useRef(null)
   const audioCtx = useRef(null)
+  const channelRef = useRef(null)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Sync en tiempo real
-  const channelRef = useRef(null)
   useEffect(() => {
     if (!syncEnabled || !song?.id) return
     const ch = supabase.channel(`song-key-${song.id}`, { config: { broadcast: { self: false } } })
@@ -54,10 +59,11 @@ export default function SongViewer({
     return () => { supabase.removeChannel(ch); channelRef.current = null }
   }, [syncEnabled, song?.id])
 
-  // Broadcast cuando el líder cambia el tono
   const broadcastSemitones = async (newVal) => {
     if (syncEnabled && isLeader && channelRef.current) {
-      await channelRef.current.send({ type: 'broadcast', event: 'key-change', payload: { semitones: newVal } })
+      await channelRef.current.send({
+        type: 'broadcast', event: 'key-change', payload: { semitones: newVal }
+      })
     }
   }
 
@@ -65,18 +71,11 @@ export default function SongViewer({
     const newVal = typeof val === 'function' ? val(semitones) : val
     setSemitones(newVal)
     broadcastSemitones(newVal)
-    // Guardar último tono
     if (song?.id && song?.original_key) {
       const newKey = KEYS[(KEYS.indexOf(song.original_key) + newVal + 120) % 12]
       saveLastKey(song.id, newKey)
     }
   }
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768)
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
 
   // Cargar último tono usado
   useEffect(() => {
@@ -131,7 +130,10 @@ export default function SongViewer({
           osc.start(); osc.stop(audioCtx.current.currentTime + 0.1)
         } catch (e) {}
       }, interval)
-    } else { clearInterval(metRef.current); setBeat(false) }
+    } else {
+      clearInterval(metRef.current)
+      setBeat(false)
+    }
     return () => clearInterval(metRef.current)
   }, [metronome, bpm])
 
@@ -152,16 +154,16 @@ export default function SongViewer({
     await supabase.from('song_notes').upsert({
       user_id: user.id, song_id: song.id, content: note, updated_at: new Date()
     }, { onConflict: 'user_id,song_id' })
-    setSavingNote(false); setNoteSaved(true)
+    setSavingNote(false)
+    setNoteSaved(true)
     setTimeout(() => setNoteSaved(false), 2000)
   }
 
   const currentKey = song?.original_key
     ? KEYS[(KEYS.indexOf(song.original_key) + semitones + 120) % 12] : '?'
 
-  const transposedText = transposeText(song?.chords, semitones)
+  const transposedText = transposeText(song?.chords, semitones) || song?.lyrics || ''
 
-  // Swipe para cambiar canciones
   const swipeHandlers = useSwipe({
     onSwipeLeft: hasNext ? onNext : null,
     onSwipeRight: hasPrev ? onPrev : null
@@ -184,35 +186,73 @@ export default function SongViewer({
       <PresentationMode
         song={song}
         currentKey={currentKey}
-        text={transposedText || song?.lyrics || ''}
+        text={transposedText}
         onClose={() => setPresentation(false)}
       />
     )
   }
 
-  // VISTA MÓVIL EXPANDIDA (autoExpand)
+  // VISTA MÓVIL EXPANDIDA (autoExpand) — igual que en Canciones
   if (autoExpand) {
     return (
       <div {...swipeHandlers}>
+        {/* Controles + info + YouTube */}
         <div style={{
           background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
           borderRadius: '12px', padding: '16px', marginBottom: '16px'
         }}>
-          <Controls {...controlsProps} compact={false} />
+          {/* Título y botones top */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <div>
+              <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '15px', color: '#e2e8f0', margin: '0 0 2px' }}>
+                {song.title}
+              </h2>
+              <span style={{ color: '#64748b', fontSize: '11px' }}>
+                {song.original_key} → <span style={{ color: '#00d4ff' }}>{currentKey}</span>
+                {bpm > 0 && <span style={{ marginLeft: '8px', color: '#06ffa5' }}>♩{bpm}</span>}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button onClick={toggleFav} style={{
+                background: 'none', border: 'none', fontSize: '20px',
+                cursor: 'pointer', color: isFav ? '#f59e0b' : '#475569'
+              }}>{isFav ? '★' : '☆'}</button>
+              {song.youtube_url && (
+                <a href={song.youtube_url} target="_blank" rel="noopener noreferrer" style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  padding: '5px 10px', borderRadius: '8px',
+                  background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                  color: '#f87171', textDecoration: 'none', fontSize: '11px', fontWeight: '600'
+                }}>▶ YT</a>
+              )}
+              <button onClick={() => setPresentation(true)} style={{
+                padding: '5px 10px', borderRadius: '8px', cursor: 'pointer',
+                background: 'rgba(6,255,165,0.1)', border: '1px solid rgba(6,255,165,0.3)',
+                color: '#06ffa5', fontSize: '11px', fontWeight: '600'
+              }}>PRES</button>
+            </div>
+          </div>
+
+          {/* Transponer */}
+          <SongControls {...controlsProps} compact={false} />
         </div>
 
-        <div data-scroll-container style={{ paddingBottom: '40px' }}>
+        {/* Letra completa fluida */}
+        <div style={{ paddingBottom: '60px' }}>
           <LyricsView
-            text={transposedText || song?.lyrics || ''}
+            text={transposedText}
             fontSize={fontSize}
             autoScroll={true}
             padding="0 4px"
           />
         </div>
 
-        {/* Swipe hint */}
+        {/* Hint swipe */}
         {(hasNext || hasPrev) && (
-          <div style={{ textAlign: 'center', color: '#334155', fontSize: '11px', padding: '12px', letterSpacing: '1px' }}>
+          <div style={{
+            textAlign: 'center', color: '#1e3a4a', fontSize: '11px',
+            padding: '12px', letterSpacing: '1px'
+          }}>
             ← DESLIZA PARA CAMBIAR CANCIÓN →
           </div>
         )}
@@ -230,7 +270,7 @@ export default function SongViewer({
         }}
         {...swipeHandlers}
       >
-        {/* Header */}
+        {/* Header fullscreen */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '8px 12px', borderBottom: '1px solid rgba(0,212,255,0.15)',
@@ -240,8 +280,17 @@ export default function SongViewer({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
             <button onClick={toggleFav} style={{
               background: 'none', border: 'none', fontSize: '16px',
-              cursor: 'pointer', color: isFav ? '#f59e0b' : '#475569'
+              cursor: 'pointer', color: isFav ? '#f59e0b' : '#475569', flexShrink: 0
             }}>{isFav ? '★' : '☆'}</button>
+            {song.youtube_url && (
+              <a href={song.youtube_url} target="_blank" rel="noopener noreferrer" style={{
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                padding: '3px 8px', borderRadius: '6px',
+                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                color: '#f87171', textDecoration: 'none', fontSize: '10px', fontWeight: '600',
+                flexShrink: 0
+              }}>▶ YT</a>
+            )}
             <div style={{ minWidth: 0 }}>
               <h2 style={{
                 fontFamily: 'Orbitron, sans-serif', fontSize: '12px', color: '#e2e8f0',
@@ -253,8 +302,8 @@ export default function SongViewer({
               </span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Controls {...controlsProps} compact={true} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+            <SongControls {...controlsProps} compact={true} />
             <button onClick={() => setFullscreen(false)} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: '28px', height: '28px', borderRadius: '6px',
@@ -269,7 +318,7 @@ export default function SongViewer({
           display: 'flex', borderBottom: '1px solid rgba(0,212,255,0.1)',
           background: 'rgba(0,0,0,0.2)', flexShrink: 0
         }}>
-          {['chords','notes','history'].map(tab => (
+          {['chords', 'notes', 'history'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding: '7px 12px', background: 'transparent', border: 'none',
               borderBottom: '2px solid ' + (activeTab === tab ? '#00d4ff' : 'transparent'),
@@ -282,11 +331,11 @@ export default function SongViewer({
           ))}
         </div>
 
-        {/* Contenido */}
-        <div style={{ flex: 1, overflowY: 'auto' }} data-scroll-container>
+        {/* Contenido scroll libre */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
           {activeTab === 'chords' && (
             <LyricsView
-              text={transposedText || song?.lyrics || ''}
+              text={transposedText}
               fontSize={fontSize}
               autoScroll={true}
               padding={isMobile ? '16px 14px' : '24px 40px'}
@@ -295,12 +344,14 @@ export default function SongViewer({
 
           {activeTab === 'notes' && (
             <div style={{ padding: isMobile ? '16px 14px' : '24px 32px' }}>
-              <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px' }}>
-                MIS NOTAS PERSONALES
-              </p>
+              <p style={{
+                color: '#64748b', fontSize: '11px', letterSpacing: '2px',
+                textTransform: 'uppercase', margin: '0 0 12px'
+              }}>MIS NOTAS PERSONALES</p>
               <textarea value={note} onChange={e => setNote(e.target.value)} rows={10}
                 placeholder="Escribe tus notas... (capos, dedos, recordatorios)"
-                className="input-field" style={{ resize: 'vertical', fontSize: '14px', lineHeight: '1.6' }}
+                className="input-field"
+                style={{ resize: 'vertical', fontSize: '14px', lineHeight: '1.6' }}
               />
               <button onClick={saveNote} disabled={savingNote} style={{
                 marginTop: '12px', padding: '10px 24px', borderRadius: '8px', cursor: 'pointer',
@@ -315,9 +366,10 @@ export default function SongViewer({
 
           {activeTab === 'history' && (
             <div style={{ padding: isMobile ? '16px 14px' : '24px 32px' }}>
-              <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px' }}>
-                HISTORIAL DE TONOS
-              </p>
+              <p style={{
+                color: '#64748b', fontSize: '11px', letterSpacing: '2px',
+                textTransform: 'uppercase', margin: '0 0 12px'
+              }}>HISTORIAL DE TONOS</p>
               {keyHistory.length === 0 ? (
                 <p style={{ color: '#475569', fontSize: '13px' }}>No hay historial aun.</p>
               ) : (
@@ -329,12 +381,18 @@ export default function SongViewer({
                       background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(0,212,255,0.08)'
                     }}>
                       <div>
-                        <p style={{ margin: '0 0 2px', fontSize: '13px', color: '#e2e8f0' }}>{h.services?.title || 'Servicio'}</p>
-                        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>{new Date(h.used_at).toLocaleDateString('es-MX')}</p>
+                        <p style={{ margin: '0 0 2px', fontSize: '13px', color: '#e2e8f0' }}>
+                          {h.services?.title || 'Servicio'}
+                        </p>
+                        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
+                          {new Date(h.used_at).toLocaleDateString('es-MX')}
+                        </p>
                       </div>
-                      <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '18px', fontWeight: '900', color: '#00d4ff' }}>
-                        {h.key_used}
-                      </span>
+                      <span style={{
+                        fontFamily: 'Orbitron, sans-serif', fontSize: '18px',
+                        fontWeight: '900', color: '#00d4ff',
+                        textShadow: '0 0 10px rgba(0,212,255,0.4)'
+                      }}>{h.key_used}</span>
                     </div>
                   ))}
                 </div>
@@ -352,6 +410,7 @@ export default function SongViewer({
       background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
       borderRadius: '12px', padding: '20px', animation: 'fadeInUp 0.3s ease forwards'
     }}>
+      {/* Header con título y botones */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
         <div>
           <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '16px', color: '#e2e8f0', margin: '0 0 4px' }}>
@@ -370,6 +429,14 @@ export default function SongViewer({
             border: '1px solid ' + (isFav ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.1)'),
             fontSize: '14px', color: isFav ? '#f59e0b' : '#64748b', cursor: 'pointer'
           }}>{isFav ? '★' : '☆'}</button>
+          {song.youtube_url && (
+            <a href={song.youtube_url} target="_blank" rel="noopener noreferrer" style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '6px 10px', borderRadius: '8px',
+              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+              color: '#f87171', textDecoration: 'none', fontSize: '11px', fontWeight: '600'
+            }}>▶ YT</a>
+          )}
           <button onClick={() => setPresentation(true)} style={{
             padding: '6px 10px', borderRadius: '8px', cursor: 'pointer',
             background: 'rgba(6,255,165,0.1)', border: '1px solid rgba(6,255,165,0.3)',
@@ -384,31 +451,21 @@ export default function SongViewer({
         </div>
       </div>
 
+      {/* Controles transponer */}
       <div style={{
         background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,212,255,0.15)',
         borderRadius: '10px', padding: '12px 16px', marginBottom: '16px'
       }}>
-        <Controls {...controlsProps} compact={true} />
+        <SongControls {...controlsProps} compact={true} />
       </div>
 
-      {/* Preview letra */}
-      <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-        <LyricsView
-          text={transposedText || song?.lyrics || ''}
-          fontSize={fontSize}
-          autoScroll={false}
-          padding="0"
-        />
-      </div>
-
-      {song.youtube_url && (
-        <a href={song.youtube_url} target="_blank" rel="noopener noreferrer" style={{
-          display: 'inline-flex', alignItems: 'center', gap: '8px', marginTop: '12px',
-          padding: '6px 12px', borderRadius: '8px',
-          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-          color: '#f87171', textDecoration: 'none', fontSize: '11px', fontWeight: '600'
-        }}>▶ VER EN YOUTUBE</a>
-      )}
+      {/* Preview letra completa */}
+      <LyricsView
+        text={transposedText}
+        fontSize={fontSize}
+        autoScroll={false}
+        padding="0"
+      />
     </div>
   )
 }

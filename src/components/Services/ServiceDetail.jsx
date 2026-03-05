@@ -10,10 +10,7 @@ import jsPDF from 'jspdf'
 
 function SortableTab({ ss, index, isActive, onClick, canEdit, onRemove }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: ss.id })
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition, opacity: isDragging ? 0.5 : 1, flexShrink: 0
-  }
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, flexShrink: 0 }
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       <button onClick={onClick} style={{
@@ -65,6 +62,13 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
   const [newMessage, setNewMessage] = useState('')
   const [comments, setComments] = useState([])
   const [newComment, setNewComment] = useState('')
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -176,8 +180,7 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(12)
     songs.forEach((ss, i) => {
-      const y = 62 + i * 10
-      doc.text((i + 1) + '. ' + (ss.songs?.title || '') + ' - Tono: ' + (ss.songs?.original_key || '?'), 20, y)
+      doc.text((i + 1) + '. ' + (ss.songs?.title || '') + ' - Tono: ' + (ss.songs?.original_key || '?'), 20, 62 + i * 10)
     })
     doc.save(service.title + '.pdf')
   }
@@ -200,6 +203,10 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
   )
 
   const activeSong = songs[activeSongIndex]?.songs || null
+  const hasPrev = activeSongIndex > 0
+  const hasNext = activeSongIndex < songs.length - 1
+  const goNext = () => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))
+  const goPrev = () => setActiveSongIndex(i => Math.max(0, i - 1))
 
   const tabBtn = (id, label) => (
     <button onClick={() => setView(id)} style={{
@@ -216,6 +223,7 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
       background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
       borderRadius: '12px', padding: '20px', animation: 'fadeInUp 0.3s ease forwards'
     }}>
+      {/* Header servicio */}
       <div style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
@@ -244,14 +252,17 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
         </div>
       </div>
 
+      {/* Tabs */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', borderBottom: '1px solid rgba(0,212,255,0.1)', paddingBottom: '12px' }}>
         {tabBtn('songs', '♪ CANCIONES')}
         {tabBtn('chat', '💬 CHAT')}
         {tabBtn('comments', '📝 NOTAS')}
       </div>
 
+      {/* CANCIONES */}
       {view === 'songs' && (
         <div>
+          {/* Tabs de canciones drag & drop */}
           {songs.length > 0 && (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={songs.map(s => s.id)} strategy={horizontalListSortingStrategy}>
@@ -280,6 +291,7 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
             </DndContext>
           )}
 
+          {/* Agregar canción */}
           {showAddSong && (
             <div style={{
               background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(6,255,165,0.2)',
@@ -330,42 +342,23 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
             </div>
           )}
 
+          {/* SongViewer — igual que en Canciones */}
           {activeSong && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <button onClick={() => setActiveSongIndex(i => Math.max(0, i - 1))}
-                  disabled={activeSongIndex === 0} style={{
-                    padding: '6px 14px', borderRadius: '6px',
-                    cursor: activeSongIndex === 0 ? 'default' : 'pointer',
-                    background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)',
-                    color: activeSongIndex === 0 ? '#1e3a4a' : '#00d4ff',
-                    fontSize: '12px', fontWeight: '600', transition: 'all 0.2s'
-                  }}>← ANTERIOR</button>
-                <span style={{ color: '#64748b', fontSize: '11px' }}>
-                  {(activeSongIndex + 1) + ' / ' + songs.length}
-                </span>
-                <button onClick={() => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))}
-                  disabled={activeSongIndex === songs.length - 1} style={{
-                    padding: '6px 14px', borderRadius: '6px',
-                    cursor: activeSongIndex === songs.length - 1 ? 'default' : 'pointer',
-                    background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)',
-                    color: activeSongIndex === songs.length - 1 ? '#1e3a4a' : '#00d4ff',
-                    fontSize: '12px', fontWeight: '600', transition: 'all 0.2s'
-                  }}>SIGUIENTE →</button>
-              </div>
-              <SongViewer
-                song={activeSong}
-                hasNext={activeSongIndex < songs.length - 1}
-                hasPrev={activeSongIndex > 0}
-                onNext={() => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))}
-                onPrev={() => setActiveSongIndex(i => Math.max(0, i - 1))}
-                serviceSongs={songs.map(ss => ss.songs)}
-              />
-            </div>
+            <SongViewer
+              key={activeSong.id}
+              song={activeSong}
+              autoExpand={isMobile}
+              hasNext={hasNext}
+              hasPrev={hasPrev}
+              onNext={goNext}
+              onPrev={goPrev}
+              serviceSongs={songs.map(ss => ss.songs)}
+            />
           )}
         </div>
       )}
 
+      {/* CHAT */}
       {view === 'chat' && (
         <div>
           <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
@@ -379,7 +372,8 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
                 return (
                   <div key={m.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
                     <div style={{
-                      maxWidth: '75%', padding: '10px 14px', borderRadius: isMe ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                      maxWidth: '75%', padding: '10px 14px',
+                      borderRadius: isMe ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
                       background: isMe ? 'rgba(0,212,255,0.15)' : 'rgba(0,0,0,0.3)',
                       border: '1px solid ' + (isMe ? 'rgba(0,212,255,0.3)' : 'rgba(255,255,255,0.08)')
                     }}>
@@ -413,6 +407,7 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
         </div>
       )}
 
+      {/* NOTAS */}
       {view === 'comments' && (
         <div>
           <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
