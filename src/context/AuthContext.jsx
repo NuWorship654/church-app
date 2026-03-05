@@ -4,7 +4,6 @@ import { openDB } from 'idb'
 
 const AuthContext = createContext({})
 
-// Cache de perfil en idb
 const DB_NAME = 'worship-cache'
 const getDB = () => openDB(DB_NAME, 1, {
   upgrade(db) {
@@ -14,48 +13,27 @@ const getDB = () => openDB(DB_NAME, 1, {
 })
 
 const saveProfileCache = async (profile) => {
-  try {
-    const db = await getDB()
-    await db.put('meta', profile, 'cached_profile')
-  } catch (e) {}
+  try { const db = await getDB(); await db.put('meta', profile, 'cached_profile') } catch (e) {}
 }
-
 const getProfileCache = async () => {
-  try {
-    const db = await getDB()
-    return await db.get('meta', 'cached_profile')
-  } catch (e) { return null }
+  try { const db = await getDB(); return await db.get('meta', 'cached_profile') } catch (e) { return null }
 }
-
-const saveSessionCache = (session) => {
-  try {
-    if (session) localStorage.setItem('worship_session', JSON.stringify({
-      user: session.user,
-      savedAt: Date.now()
-    }))
-  } catch (e) {}
+const saveSessionCache = (user) => {
+  try { localStorage.setItem('worship_session', JSON.stringify({ user, savedAt: Date.now() })) } catch (e) {}
 }
-
 const getSessionCache = () => {
   try {
     const raw = localStorage.getItem('worship_session')
     if (!raw) return null
     const parsed = JSON.parse(raw)
-    // Sesión válida por 30 días
-    const thirtyDays = 30 * 24 * 60 * 60 * 1000
-    if (Date.now() - parsed.savedAt > thirtyDays) {
+    if (Date.now() - parsed.savedAt > 30 * 24 * 60 * 60 * 1000) {
       localStorage.removeItem('worship_session')
       return null
     }
     return parsed
   } catch (e) { return null }
 }
-
-const clearSessionCache = () => {
-  try {
-    localStorage.removeItem('worship_session')
-  } catch (e) {}
-}
+const clearSessionCache = () => { try { localStorage.removeItem('worship_session') } catch (e) {} }
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
@@ -63,63 +41,53 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [isOfflineAuth, setIsOfflineAuth] = useState(false)
 
-  const loadProfile = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles').select('*').eq('id', userId).single()
-      if (data) {
-        setProfile(data)
-        await saveProfileCache(data)
-        return data
-      }
-    } catch (e) {}
-
-    // Sin internet — usar caché
-    const cached = await getProfileCache()
-    if (cached && cached.id === userId) {
-      setProfile(cached)
-      setIsOfflineAuth(true)
-      return cached
-    }
-    return null
-  }
-
   useEffect(() => {
     const init = async () => {
+      // 1. PRIMERO cargar caché local — instantáneo, sin esperar red
+      const cachedSession = getSessionCache()
+      const cachedProfile = await getProfileCache()
+
+      if (cachedSession?.user && cachedProfile) {
+        // Mostrar app de inmediato con datos cacheados
+        setUser(cachedSession.user)
+        setProfile(cachedProfile)
+        setLoading(false) // <-- app visible YA
+
+        // 2. EN BACKGROUND: intentar actualizar desde red
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.user) {
+            setUser(session.user)
+            saveSessionCache(session.user)
+            setIsOfflineAuth(false)
+            // Actualizar perfil en background sin bloquear UI
+            supabase.from('profiles').select('*').eq('id', session.user.id).single()
+              .then(({ data }) => {
+                if (data) { setProfile(data); saveProfileCache(data) }
+              })
+          } else {
+            // Sesión expiró en servidor
+            setUser(null); setProfile(null)
+            clearSessionCache()
+          }
+        } catch (e) {
+          // Sin internet — quedarse con caché, marcar offline
+          setIsOfflineAuth(true)
+        }
+        return
+      }
+
+      // 3. Sin caché — necesita internet para login
       try {
-        // Intentar obtener sesión de Supabase con timeout
-        const sessionPromise = supabase.auth.getSession()
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 4000)
-        )
-
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise])
-
+        const { data: { session } } = await supabase.auth.getSession()
         if (session?.user) {
           setUser(session.user)
-          saveSessionCache(session)
-          await loadProfile(session.user.id)
-        } else {
-          setUser(null)
-          setProfile(null)
+          saveSessionCache(session.user)
+          const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+          if (data) { setProfile(data); saveProfileCache(data) }
         }
-      } catch (e) {
-        // Sin internet o timeout — intentar sesión cacheada
-        const cached = getSessionCache()
-        if (cached?.user) {
-          setUser(cached.user)
-          setIsOfflineAuth(true)
-          const cachedProfile = await getProfileCache()
-          if (cachedProfile && cachedProfile.id === cached.user.id) {
-            setProfile(cachedProfile)
-          }
-        } else {
-          setUser(null)
-          setProfile(null)
-        }
-      } finally {
-        setLoading(false)
-      }
+      } catch (e) {}
+      setLoading(false)
     }
 
     init()
@@ -127,12 +95,12 @@ export const AuthProvider = ({ children }) => {
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         setUser(session.user)
-        saveSessionCache(session)
+        saveSessionCache(session.user)
         setIsOfflineAuth(false)
-        await loadProfile(session.user.id)
+        const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+        if (data) { setProfile(data); saveProfileCache(data) }
       } else {
-        setUser(null)
-        setProfile(null)
+        setUser(null); setProfile(null)
         setIsOfflineAuth(false)
         clearSessionCache()
       }
@@ -144,16 +112,16 @@ export const AuthProvider = ({ children }) => {
   const signIn = async (email, password) => {
     const result = await supabase.auth.signInWithPassword({ email, password })
     if (result.data?.session) {
-      saveSessionCache(result.data.session)
-      await loadProfile(result.data.session.user.id)
+      saveSessionCache(result.data.session.user)
+      const { data } = await supabase.from('profiles').select('*').eq('id', result.data.session.user.id).single()
+      if (data) { setProfile(data); saveProfileCache(data) }
     }
     return result
   }
 
   const signOut = async () => {
     clearSessionCache()
-    setUser(null)
-    setProfile(null)
+    setUser(null); setProfile(null)
     try { await supabase.auth.signOut() } catch (e) {}
   }
 
@@ -173,14 +141,10 @@ export const AuthProvider = ({ children }) => {
         <div style={{
           minHeight: '100vh', background: '#020817',
           display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: '16px'
+          alignItems: 'center', justifyContent: 'center', gap: '12px'
         }}>
-          <div style={{
-            fontFamily: 'Orbitron, sans-serif', color: '#00d4ff',
-            fontSize: '14px', letterSpacing: '3px'
-          }}>CARGANDO...</div>
-          <div style={{ color: '#334155', fontSize: '11px' }}>
-            verificando sesión...
+          <div style={{ fontFamily: 'Orbitron, sans-serif', color: '#00d4ff', fontSize: '14px', letterSpacing: '3px' }}>
+            CARGANDO...
           </div>
         </div>
       ) : children}
