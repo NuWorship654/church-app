@@ -9,18 +9,34 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
 
   useEffect(() => {
     if (user) navigate('/')
   }, [user])
 
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true)
+    const onOffline = () => setIsOnline(false)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [])
+
   const handleLogin = async e => {
     e.preventDefault()
+    if (!isOnline) {
+      setError('Sin conexión. No es posible iniciar sesión por primera vez sin internet.')
+      return
+    }
     setLoading(true)
     setError('')
     const { error } = await signIn(email, password)
     if (error) {
-      setError('Credenciales incorrectas')
+      setError('Correo o contraseña incorrectos')
       setLoading(false)
     }
   }
@@ -31,6 +47,7 @@ export default function Login() {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '20px', position: 'relative', overflow: 'hidden'
     }}>
+      {/* Fondo */}
       <div style={{
         position: 'absolute', inset: 0, zIndex: 0,
         background: 'radial-gradient(ellipse at 30% 40%, rgba(74,111,165,0.25) 0%, transparent 60%), radial-gradient(ellipse at 70% 60%, rgba(0,212,255,0.08) 0%, transparent 60%)'
@@ -46,12 +63,32 @@ export default function Login() {
         width: '100%', maxWidth: '420px',
         animation: 'fadeInUp 0.6s ease forwards'
       }}>
+        {/* Banner sin internet */}
+        {!isOnline && (
+          <div style={{
+            background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+            borderRadius: '10px', padding: '10px 16px', marginBottom: '16px',
+            display: 'flex', alignItems: 'center', gap: '8px'
+          }}>
+            <span style={{ fontSize: '16px' }}>⚠️</span>
+            <div>
+              <p style={{ color: '#f59e0b', fontSize: '12px', fontWeight: '600', margin: '0 0 2px' }}>
+                Sin conexión a internet
+              </p>
+              <p style={{ color: '#78716c', fontSize: '11px', margin: 0 }}>
+                Si ya iniciaste sesión antes, la app cargará automáticamente.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div style={{
           background: 'rgba(13,27,42,0.95)',
           border: '1px solid rgba(74,111,165,0.4)',
           borderRadius: '20px', padding: '40px 32px',
           boxShadow: '0 0 60px rgba(74,111,165,0.15), 0 0 120px rgba(0,212,255,0.05)'
         }}>
+          {/* Logo */}
           <div style={{ textAlign: 'center', marginBottom: '32px' }}>
             <div style={{
               width: '80px', height: '80px', borderRadius: '20px', margin: '0 auto 16px',
@@ -83,16 +120,28 @@ export default function Login() {
                 display: 'block', color: '#94a3b8', fontSize: '11px',
                 letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px'
               }}>Correo</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                required className="input-field" placeholder="tu@correo.com" />
+              <input
+                type="email" value={email}
+                onChange={e => setEmail(e.target.value)}
+                required className="input-field"
+                placeholder="tu@correo.com"
+                disabled={!isOnline}
+                style={{ opacity: isOnline ? 1 : 0.5 }}
+              />
             </div>
             <div>
               <label style={{
                 display: 'block', color: '#94a3b8', fontSize: '11px',
                 letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px'
               }}>Contraseña</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                required className="input-field" placeholder="••••••••" />
+              <input
+                type="password" value={password}
+                onChange={e => setPassword(e.target.value)}
+                required className="input-field"
+                placeholder="••••••••"
+                disabled={!isOnline}
+                style={{ opacity: isOnline ? 1 : 0.5 }}
+              />
             </div>
 
             {error && (
@@ -103,16 +152,37 @@ export default function Login() {
               }}>{error}</div>
             )}
 
-            <button type="submit" disabled={loading} style={{
-              padding: '14px', borderRadius: '10px', cursor: loading ? 'not-allowed' : 'pointer',
-              background: loading ? 'rgba(74,111,165,0.3)' : 'linear-gradient(135deg, #4a6fa5, #2d4f7c)',
-              border: 'none', color: 'white',
+            <button type="submit" disabled={loading || !isOnline} style={{
+              padding: '14px', borderRadius: '10px',
+              cursor: (loading || !isOnline) ? 'not-allowed' : 'pointer',
+              background: !isOnline
+                ? 'rgba(74,111,165,0.15)'
+                : loading
+                  ? 'rgba(74,111,165,0.3)'
+                  : 'linear-gradient(135deg, #4a6fa5, #2d4f7c)',
+              border: !isOnline ? '1px solid rgba(74,111,165,0.2)' : 'none',
+              color: !isOnline ? '#334155' : 'white',
               fontFamily: 'Orbitron, sans-serif', fontSize: '13px', fontWeight: '700',
               letterSpacing: '2px', transition: 'all 0.3s',
-              boxShadow: loading ? 'none' : '0 4px 20px rgba(74,111,165,0.4)'
+              boxShadow: (loading || !isOnline) ? 'none' : '0 4px 20px rgba(74,111,165,0.4)'
             }}>
-              {loading ? 'ENTRANDO...' : 'ENTRAR'}
+              {loading ? 'ENTRANDO...' : !isOnline ? 'SIN CONEXIÓN' : 'ENTRAR'}
             </button>
+
+            {!isOnline && (
+              <div style={{
+                textAlign: 'center', padding: '12px',
+                background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.1)',
+                borderRadius: '8px'
+              }}>
+                <p style={{ color: '#475569', fontSize: '12px', margin: '0 0 4px' }}>
+                  ¿Ya iniciaste sesión antes?
+                </p>
+                <p style={{ color: '#00d4ff', fontSize: '11px', margin: 0 }}>
+                  La app cargará tu sesión guardada automáticamente en unos segundos...
+                </p>
+              </div>
+            )}
           </form>
 
           <p style={{ textAlign: 'center', color: '#334155', fontSize: '11px', margin: '20px 0 0' }}>

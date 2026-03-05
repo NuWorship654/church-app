@@ -1,0 +1,93 @@
+{
+  "equipos": [
+    "Familia Azul",
+    "Familia Roja"
+  ],
+  "puntajes": {
+    "Familia Azul": 0,
+    "Familia Roja": 0
+  },
+  "preguntas": [
+    {
+      "id": 1,
+      "pregunta": "¿Qué animal tiene cuatro patas y ladra?",
+      "categoria": "Animales",
+      "veces_mostrada": 1,
+      "opciones": [
+        {
+          "texto": "Perro",
+          "puntaje": 45
+        },
+        {
+          "texto": "Cachorro",
+          "puntaje": 25
+        },
+        {
+          "texto": "Can",
+          "puntaje": 15
+        },
+        {
+          "texto": "Mascota",
+          "puntaje": 10
+        },
+        {
+          "texto": "Lomito",
+          "puntaje": 5
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "pregunta": "¿Qué fruta es amarilla y los monos la adoran?",
+      "categoria": "Frutas",
+      "veces_mostrada": 0,
+      "opciones": [
+        {
+          "texto": "Plátano",
+          "puntaje": 50
+        },
+        {
+          "texto": "Banana",
+          "puntaje": 30
+        },
+        {
+          "texto": "Guineo",
+          "puntaje": 15
+        },
+        {
+          "texto": "Cambur",
+          "puntaje": 5
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "pregunta": "¿Qué cosa usas para escribir en tu cuaderno?",
+      "categoria": "Escuela",
+      "veces_mostrada": 0,
+      "opciones": [
+        {
+          "texto": "Lápiz",
+          "puntaje": 40
+        },
+        {
+          "texto": "Pluma",
+          "puntaje": 25
+        },
+        {
+          "texto": "Bolígrafo",
+          "puntaje": 20
+        },
+        {
+          "texto": "Marcador",
+          "puntaje": 10
+        },
+        {
+          "texto": "Crayón",
+          "puntaje": 5
+        }
+      ]
+    }
+  ],
+  "ultima_actualizacion": "2026-03-04T23:21:28.495708"
+}
