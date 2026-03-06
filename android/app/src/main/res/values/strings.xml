@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Hageo Worship</string>
-    <string name="title_activity_main">Hageo Worship</string>
-    <string name="package_name">com.hageo.worship</string>
-    <string name="custom_url_scheme">com.hageo.worship</string>
+    <string name="app_name" translatable="false">NuWorship</string>
+    <string name="title_activity_main" translatable="false">NuWorship</string>
+    <string name="package_name" translatable="false">com.nuworship.app</string>
+    <string name="custom_url_scheme" translatable="false">com.nuworship.app</string>
 </resources>

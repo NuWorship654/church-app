@@ -32,11 +32,14 @@ function parseSections(text) {
 
 export { parseSections, SECTION_COLORS }
 
-export default function LyricsView({ text, fontSize = 15, autoScroll = false, scrollSpeed = 50, padding = '16px 14px' }) {
+export default function LyricsView({
+  text, fontSize = 15, autoScroll = false,
+  scrollSpeed = 50, padding = '16px 14px'
+}) {
   const sectionRefs = useRef({})
-  const containerRef = useRef(null)
   const scrollInterval = useRef(null)
   const [isScrolling, setIsScrolling] = useState(false)
+  const [mode, setMode] = useState('chords') // 'chords' | 'lyrics'
 
   const sections = parseSections(text)
   const namedSections = sections.filter(s => s.title)
@@ -45,16 +48,12 @@ export default function LyricsView({ text, fontSize = 15, autoScroll = false, sc
     sectionRefs.current[title]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  // Auto-scroll
   useEffect(() => {
     if (autoScroll && isScrolling) {
-      const container = containerRef.current?.closest('[data-scroll-container]') || window
+      const el = document.querySelector('[data-scroll-container]') || window
       scrollInterval.current = setInterval(() => {
-        if (container === window) {
-          window.scrollBy(0, 1)
-        } else {
-          container.scrollTop += 1
-        }
+        if (el === window) window.scrollBy(0, 1)
+        else el.scrollTop += 1
       }, scrollSpeed)
     } else {
       clearInterval(scrollInterval.current)
@@ -63,37 +62,59 @@ export default function LyricsView({ text, fontSize = 15, autoScroll = false, sc
   }, [autoScroll, isScrolling, scrollSpeed])
 
   return (
-    <div ref={containerRef}>
-      {/* Índice de secciones */}
-      {namedSections.length > 0 && (
-        <div style={{
-          display: 'flex', gap: '6px', padding: '8px 14px',
-          overflowX: 'auto', borderBottom: '1px solid rgba(0,212,255,0.08)',
-          background: 'rgba(0,0,0,0.1)', flexShrink: 0
-        }}>
-          {namedSections.map((s, i) => (
-            <button key={i} onClick={() => scrollToSection(s.title)} style={{
-              flexShrink: 0, padding: '3px 10px', borderRadius: '20px', cursor: 'pointer',
-              background: s.color + '18', border: '1px solid ' + s.color + '40',
-              color: s.color, fontSize: '10px', fontWeight: '700',
-              letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap'
-            }}>{s.title}</button>
-          ))}
+    <div>
+      {/* Barra de controles: índice + toggle modo + auto-scroll */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '6px',
+        padding: '8px 14px', borderBottom: '1px solid rgba(0,212,255,0.08)',
+        background: 'rgba(0,0,0,0.1)', flexShrink: 0, overflowX: 'auto'
+      }}>
 
-          {/* Auto-scroll toggle */}
-          {autoScroll !== undefined && (
-            <button onClick={() => setIsScrolling(s => !s)} style={{
-              flexShrink: 0, padding: '3px 10px', borderRadius: '20px', cursor: 'pointer',
-              background: isScrolling ? 'rgba(6,255,165,0.2)' : 'rgba(255,255,255,0.05)',
-              border: '1px solid ' + (isScrolling ? 'rgba(6,255,165,0.5)' : 'rgba(255,255,255,0.1)'),
-              color: isScrolling ? '#06ffa5' : '#475569',
-              fontSize: '10px', fontWeight: '700', letterSpacing: '1px', whiteSpace: 'nowrap'
-            }}>
-              {isScrolling ? '⏸ AUTO' : '▶ AUTO'}
-            </button>
-          )}
+        {/* Toggle Acordes / Letra */}
+        <div style={{
+          display: 'flex', flexShrink: 0,
+          background: 'rgba(0,0,0,0.3)', borderRadius: '20px',
+          border: '1px solid rgba(0,212,255,0.15)', overflow: 'hidden'
+        }}>
+          <button onClick={() => setMode('chords')} style={{
+            padding: '4px 12px', border: 'none', cursor: 'pointer',
+            background: mode === 'chords' ? 'rgba(0,212,255,0.2)' : 'transparent',
+            color: mode === 'chords' ? '#00d4ff' : '#475569',
+            fontSize: '10px', fontWeight: '700', letterSpacing: '1px',
+            transition: 'all 0.2s'
+          }}>ACORDES</button>
+          <button onClick={() => setMode('lyrics')} style={{
+            padding: '4px 12px', border: 'none', cursor: 'pointer',
+            background: mode === 'lyrics' ? 'rgba(124,58,237,0.2)' : 'transparent',
+            color: mode === 'lyrics' ? '#a78bfa' : '#475569',
+            fontSize: '10px', fontWeight: '700', letterSpacing: '1px',
+            transition: 'all 0.2s'
+          }}>LETRA</button>
         </div>
-      )}
+
+        {/* Índice de secciones */}
+        {namedSections.map((s, i) => (
+          <button key={i} onClick={() => scrollToSection(s.title)} style={{
+            flexShrink: 0, padding: '3px 10px', borderRadius: '20px', cursor: 'pointer',
+            background: s.color + '18', border: '1px solid ' + s.color + '40',
+            color: s.color, fontSize: '10px', fontWeight: '700',
+            letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap'
+          }}>{s.title}</button>
+        ))}
+
+        {/* Auto-scroll */}
+        {autoScroll !== undefined && (
+          <button onClick={() => setIsScrolling(s => !s)} style={{
+            flexShrink: 0, padding: '3px 10px', borderRadius: '20px', cursor: 'pointer',
+            background: isScrolling ? 'rgba(6,255,165,0.2)' : 'rgba(255,255,255,0.05)',
+            border: '1px solid ' + (isScrolling ? 'rgba(6,255,165,0.5)' : 'rgba(255,255,255,0.1)'),
+            color: isScrolling ? '#06ffa5' : '#475569',
+            fontSize: '10px', fontWeight: '700', letterSpacing: '1px', whiteSpace: 'nowrap'
+          }}>
+            {isScrolling ? '⏸ AUTO' : '▶ AUTO'}
+          </button>
+        )}
+      </div>
 
       {/* Letra */}
       <div style={{ padding }}>
@@ -114,6 +135,10 @@ export default function LyricsView({ text, fontSize = 15, autoScroll = false, sc
             {section.lines.map((line, li) => {
               const chord = isChordLine(line)
               const empty = line.trim() === ''
+
+              // En modo letra omitir líneas de acordes
+              if (chord && mode === 'lyrics') return null
+
               return (
                 <div key={li} style={{
                   fontFamily: 'monospace',
