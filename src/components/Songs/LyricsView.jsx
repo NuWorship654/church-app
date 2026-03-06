@@ -33,15 +33,24 @@ function parseSections(text) {
 export { parseSections, SECTION_COLORS }
 
 export default function LyricsView({
-  text, fontSize = 15, autoScroll = false,
+  chordsText = '', lyricsText = '',
+  fontSize = 15, autoScroll = false,
   scrollSpeed = 50, padding = '16px 14px'
 }) {
   const sectionRefs = useRef({})
   const scrollInterval = useRef(null)
   const [isScrolling, setIsScrolling] = useState(false)
-  const [mode, setMode] = useState('chords') // 'chords' | 'lyrics'
+  const [mode, setMode] = useState('chords')
 
-  const sections = parseSections(text)
+  const hasLyrics = lyricsText.trim().length > 0
+  const hasChords = chordsText.trim().length > 0
+
+  // Decide qué texto mostrar según el modo
+  const textToShow = mode === 'lyrics' && hasLyrics
+    ? lyricsText
+    : chordsText || lyricsText
+
+  const sections = parseSections(textToShow)
   const namedSections = sections.filter(s => s.title)
 
   const scrollToSection = (title) => {
@@ -63,36 +72,38 @@ export default function LyricsView({
 
   return (
     <div>
-      {/* Barra de controles: índice + toggle modo + auto-scroll */}
+      {/* Barra controles */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: '6px',
         padding: '8px 14px', borderBottom: '1px solid rgba(0,212,255,0.08)',
         background: 'rgba(0,0,0,0.1)', flexShrink: 0, overflowX: 'auto'
       }}>
 
-        {/* Toggle Acordes / Letra */}
-        <div style={{
-          display: 'flex', flexShrink: 0,
-          background: 'rgba(0,0,0,0.3)', borderRadius: '20px',
-          border: '1px solid rgba(0,212,255,0.15)', overflow: 'hidden'
-        }}>
-          <button onClick={() => setMode('chords')} style={{
-            padding: '4px 12px', border: 'none', cursor: 'pointer',
-            background: mode === 'chords' ? 'rgba(0,212,255,0.2)' : 'transparent',
-            color: mode === 'chords' ? '#00d4ff' : '#475569',
-            fontSize: '10px', fontWeight: '700', letterSpacing: '1px',
-            transition: 'all 0.2s'
-          }}>ACORDES</button>
-          <button onClick={() => setMode('lyrics')} style={{
-            padding: '4px 12px', border: 'none', cursor: 'pointer',
-            background: mode === 'lyrics' ? 'rgba(124,58,237,0.2)' : 'transparent',
-            color: mode === 'lyrics' ? '#a78bfa' : '#475569',
-            fontSize: '10px', fontWeight: '700', letterSpacing: '1px',
-            transition: 'all 0.2s'
-          }}>LETRA</button>
-        </div>
+        {/* Toggle Acordes / Letra — solo si tiene ambos */}
+        {hasChords && hasLyrics && (
+          <div style={{
+            display: 'flex', flexShrink: 0,
+            background: 'rgba(0,0,0,0.3)', borderRadius: '20px',
+            border: '1px solid rgba(0,212,255,0.15)', overflow: 'hidden'
+          }}>
+            <button onClick={() => setMode('chords')} style={{
+              padding: '4px 12px', border: 'none', cursor: 'pointer',
+              background: mode === 'chords' ? 'rgba(0,212,255,0.2)' : 'transparent',
+              color: mode === 'chords' ? '#00d4ff' : '#475569',
+              fontSize: '10px', fontWeight: '700', letterSpacing: '1px',
+              transition: 'all 0.2s'
+            }}>ACORDES</button>
+            <button onClick={() => setMode('lyrics')} style={{
+              padding: '4px 12px', border: 'none', cursor: 'pointer',
+              background: mode === 'lyrics' ? 'rgba(124,58,237,0.2)' : 'transparent',
+              color: mode === 'lyrics' ? '#a78bfa' : '#475569',
+              fontSize: '10px', fontWeight: '700', letterSpacing: '1px',
+              transition: 'all 0.2s'
+            }}>LETRA</button>
+          </div>
+        )}
 
-        {/* Índice de secciones */}
+        {/* Índice secciones */}
         {namedSections.map((s, i) => (
           <button key={i} onClick={() => scrollToSection(s.title)} style={{
             flexShrink: 0, padding: '3px 10px', borderRadius: '20px', cursor: 'pointer',
@@ -116,7 +127,7 @@ export default function LyricsView({
         )}
       </div>
 
-      {/* Letra */}
+      {/* Contenido */}
       <div style={{ padding }}>
         {sections.map((section, si) => (
           <div
@@ -135,10 +146,6 @@ export default function LyricsView({
             {section.lines.map((line, li) => {
               const chord = isChordLine(line)
               const empty = line.trim() === ''
-
-              // En modo letra omitir líneas de acordes
-              if (chord && mode === 'lyrics') return null
-
               return (
                 <div key={li} style={{
                   fontFamily: 'monospace',

@@ -1,5 +1,22 @@
 {
   "appId": "com.nuworship.app",
   "appName": "NuWorship",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "url": "https://church-app-amber.vercel.app",
+    "cleartext": false
+  },
+  "android": {
+    "backgroundColor": "#020817"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#020817",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false,
+      "launchAutoHide": true
+    }
+  }
 }

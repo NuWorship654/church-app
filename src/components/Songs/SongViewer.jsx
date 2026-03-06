@@ -40,7 +40,6 @@ export default function SongViewer({
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Sync en tiempo real
   useEffect(() => {
     if (!syncEnabled || !song?.id) return
     const ch = supabase.channel(`song-key-${song.id}`, { config: { broadcast: { self: false } } })
@@ -75,7 +74,6 @@ export default function SongViewer({
     }
   }
 
-  // Cargar último tono usado
   useEffect(() => {
     if (!song?.id || !song?.original_key) return
     getLastKey(song.id).then(savedKey => {
@@ -159,7 +157,8 @@ export default function SongViewer({
   const currentKey = song?.original_key
     ? KEYS[(KEYS.indexOf(song.original_key) + semitones + 120) % 12] : '?'
 
-  const transposedText = transposeText(song?.chords, semitones) || song?.lyrics || ''
+  const chordsText = transposeText(song?.chords, semitones) || ''
+  const lyricsText = song?.lyrics || ''
 
   const swipeHandlers = useSwipe({
     onSwipeLeft: hasNext ? onNext : null,
@@ -187,7 +186,6 @@ export default function SongViewer({
         }}
         {...swipeHandlers}
       >
-        {/* Header fullscreen */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '8px 12px', borderBottom: '1px solid rgba(0,212,255,0.15)',
@@ -218,7 +216,6 @@ export default function SongViewer({
               </span>
             </div>
           </div>
-
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
             <SongControls {...controlsProps} compact={true} />
             <button onClick={() => setFullscreen(false)} style={{
@@ -230,7 +227,6 @@ export default function SongViewer({
           </div>
         </div>
 
-        {/* Tabs */}
         <div style={{
           display: 'flex', borderBottom: '1px solid rgba(0,212,255,0.1)',
           background: 'rgba(0,0,0,0.2)', flexShrink: 0
@@ -248,27 +244,24 @@ export default function SongViewer({
           ))}
         </div>
 
-        {/* Contenido scroll libre */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {activeTab === 'chords' && (
             <LyricsView
-              text={transposedText}
+              chordsText={chordsText}
+              lyricsText={lyricsText}
               fontSize={fontSize}
               autoScroll={true}
               padding={isMobile ? '16px 14px' : '24px 40px'}
             />
           )}
-
           {activeTab === 'notes' && (
             <div style={{ padding: isMobile ? '16px 14px' : '24px 32px' }}>
-              <p style={{
-                color: '#64748b', fontSize: '11px', letterSpacing: '2px',
-                textTransform: 'uppercase', margin: '0 0 12px'
-              }}>MIS NOTAS PERSONALES</p>
+              <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px' }}>
+                MIS NOTAS PERSONALES
+              </p>
               <textarea value={note} onChange={e => setNote(e.target.value)} rows={10}
                 placeholder="Escribe tus notas... (capos, dedos, recordatorios)"
-                className="input-field"
-                style={{ resize: 'vertical', fontSize: '14px', lineHeight: '1.6' }}
+                className="input-field" style={{ resize: 'vertical', fontSize: '14px', lineHeight: '1.6' }}
               />
               <button onClick={saveNote} disabled={savingNote} style={{
                 marginTop: '12px', padding: '10px 24px', borderRadius: '8px', cursor: 'pointer',
@@ -280,13 +273,11 @@ export default function SongViewer({
               </button>
             </div>
           )}
-
           {activeTab === 'history' && (
             <div style={{ padding: isMobile ? '16px 14px' : '24px 32px' }}>
-              <p style={{
-                color: '#64748b', fontSize: '11px', letterSpacing: '2px',
-                textTransform: 'uppercase', margin: '0 0 12px'
-              }}>HISTORIAL DE TONOS</p>
+              <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px' }}>
+                HISTORIAL DE TONOS
+              </p>
               {keyHistory.length === 0 ? (
                 <p style={{ color: '#475569', fontSize: '13px' }}>No hay historial aun.</p>
               ) : (
@@ -298,18 +289,12 @@ export default function SongViewer({
                       background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(0,212,255,0.08)'
                     }}>
                       <div>
-                        <p style={{ margin: '0 0 2px', fontSize: '13px', color: '#e2e8f0' }}>
-                          {h.services?.title || 'Servicio'}
-                        </p>
-                        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
-                          {new Date(h.used_at).toLocaleDateString('es-MX')}
-                        </p>
+                        <p style={{ margin: '0 0 2px', fontSize: '13px', color: '#e2e8f0' }}>{h.services?.title || 'Servicio'}</p>
+                        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>{new Date(h.used_at).toLocaleDateString('es-MX')}</p>
                       </div>
-                      <span style={{
-                        fontFamily: 'Orbitron, sans-serif', fontSize: '18px',
-                        fontWeight: '900', color: '#00d4ff',
-                        textShadow: '0 0 10px rgba(0,212,255,0.4)'
-                      }}>{h.key_used}</span>
+                      <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '18px', fontWeight: '900', color: '#00d4ff' }}>
+                        {h.key_used}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -329,7 +314,6 @@ export default function SongViewer({
           background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
           borderRadius: '12px', padding: '16px', marginBottom: '16px'
         }}>
-          {/* Título + botones top */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '14px' }}>
             <div>
               <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '15px', color: '#e2e8f0', margin: '0 0 2px' }}>
@@ -360,15 +344,13 @@ export default function SongViewer({
               }}>⛶ VER</button>
             </div>
           </div>
-
-          {/* Controles transponer */}
           <SongControls {...controlsProps} compact={false} />
         </div>
 
-        {/* Letra completa fluida */}
         <div style={{ paddingBottom: '60px' }}>
           <LyricsView
-            text={transposedText}
+            chordsText={chordsText}
+            lyricsText={lyricsText}
             fontSize={fontSize}
             autoScroll={true}
             padding="0 4px"
@@ -376,10 +358,7 @@ export default function SongViewer({
         </div>
 
         {(hasNext || hasPrev) && (
-          <div style={{
-            textAlign: 'center', color: '#1e3a4a', fontSize: '11px',
-            padding: '12px', letterSpacing: '1px'
-          }}>
+          <div style={{ textAlign: 'center', color: '#1e3a4a', fontSize: '11px', padding: '12px', letterSpacing: '1px' }}>
             ← DESLIZA PARA CAMBIAR CANCIÓN →
           </div>
         )}
@@ -387,7 +366,7 @@ export default function SongViewer({
     )
   }
 
-  // VISTA COMPACTA desktop
+  // VISTA COMPACTA DESKTOP
   return (
     <div style={{
       background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
@@ -436,7 +415,8 @@ export default function SongViewer({
       </div>
 
       <LyricsView
-        text={transposedText}
+        chordsText={chordsText}
+        lyricsText={lyricsText}
         fontSize={fontSize}
         autoScroll={false}
         padding="0"
