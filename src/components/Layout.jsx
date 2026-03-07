@@ -10,6 +10,7 @@ export default function Layout() {
   const [isIOS, setIsIOS] = useState(false)
   const [isInstalled, setIsInstalled] = useState(false)
   const [showIOSGuide, setShowIOSGuide] = useState(false)
+  const [showAndroidGuide, setShowAndroidGuide] = useState(false)
 
   useEffect(() => {
     const ios = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
@@ -26,10 +27,14 @@ export default function Layout() {
 
   const handleInstall = async () => {
     if (isIOS) { setShowIOSGuide(true); setMenuOpen(false); return }
-    if (!installPrompt) return
-    installPrompt.prompt()
-    const { outcome } = await installPrompt.userChoice
-    if (outcome === 'accepted') setIsInstalled(true)
+    if (installPrompt) {
+      installPrompt.prompt()
+      const { outcome } = await installPrompt.userChoice
+      if (outcome === 'accepted') setIsInstalled(true)
+      return
+    }
+    setShowAndroidGuide(true)
+    setMenuOpen(false)
   }
 
   const handleSignOut = async () => { await signOut(); navigate('/login') }
@@ -122,7 +127,6 @@ export default function Layout() {
 
         {/* Perfil + instalar + salir */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          {/* Botón instalar desktop */}
           <div className="nav-desktop">
             <InstallButton />
           </div>
@@ -180,9 +184,11 @@ export default function Layout() {
             </NavLink>
           ))}
 
-          {/* Separador */}
-          <div style={{ borderTop: '1px solid rgba(74,111,165,0.15)', marginTop: '8px', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {/* Botón instalar móvil */}
+          <div style={{
+            borderTop: '1px solid rgba(74,111,165,0.15)',
+            marginTop: '8px', paddingTop: '8px',
+            display: 'flex', flexDirection: 'column', gap: '4px'
+          }}>
             <InstallButton mobile={true} />
 
             <button onClick={() => { handleSignOut(); setMenuOpen(false) }} style={{
@@ -218,7 +224,6 @@ export default function Layout() {
                 background: 'none', border: 'none', color: '#64748b', fontSize: '20px', cursor: 'pointer'
               }}>×</button>
             </div>
-
             {[
               { icon: '1️⃣', text: 'Abre esta página en Safari', sub: 'No funciona en Chrome ni Firefox' },
               { icon: '2️⃣', text: 'Toca el botón de compartir', sub: 'El ícono de cuadro con flecha arriba' },
@@ -236,11 +241,56 @@ export default function Layout() {
                 </div>
               </div>
             ))}
-
             <button onClick={() => setShowIOSGuide(false)} style={{
               width: '100%', marginTop: '20px', padding: '12px', borderRadius: '10px',
               background: 'linear-gradient(135deg, #00d4ff, #7c3aed)',
               border: 'none', color: 'white', fontSize: '13px', fontWeight: '700',
+              cursor: 'pointer', letterSpacing: '1px'
+            }}>ENTENDIDO</button>
+          </div>
+        </div>
+      )}
+
+      {/* Guía Android */}
+      {showAndroidGuide && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '16px'
+        }}>
+          <div style={{
+            background: '#0d1b2a', border: '1px solid rgba(6,255,165,0.3)',
+            borderRadius: '20px', padding: '24px', width: '100%', maxWidth: '420px',
+            animation: 'fadeInUp 0.3s ease forwards'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ fontFamily: 'Orbitron, sans-serif', color: '#06ffa5', fontSize: '13px', margin: 0 }}>
+                INSTALAR EN ANDROID
+              </h3>
+              <button onClick={() => setShowAndroidGuide(false)} style={{
+                background: 'none', border: 'none', color: '#64748b', fontSize: '20px', cursor: 'pointer'
+              }}>×</button>
+            </div>
+            {[
+              { icon: '1️⃣', text: 'Toca los 3 puntos arriba a la derecha', sub: 'El menú de Chrome ⋮' },
+              { icon: '2️⃣', text: 'Selecciona "Añadir a pantalla de inicio"', sub: 'O "Instalar aplicación"' },
+              { icon: '3️⃣', text: 'Toca "Instalar"', sub: 'La app aparecerá en tu pantalla de inicio' },
+            ].map((step, i) => (
+              <div key={i} style={{
+                display: 'flex', gap: '14px', alignItems: 'flex-start',
+                marginBottom: i < 2 ? '16px' : 0
+              }}>
+                <span style={{ fontSize: '22px', flexShrink: 0 }}>{step.icon}</span>
+                <div>
+                  <p style={{ margin: '0 0 2px', color: '#e2e8f0', fontSize: '13px', fontWeight: '600' }}>{step.text}</p>
+                  <p style={{ margin: 0, color: '#64748b', fontSize: '11px' }}>{step.sub}</p>
+                </div>
+              </div>
+            ))}
+            <button onClick={() => setShowAndroidGuide(false)} style={{
+              width: '100%', marginTop: '20px', padding: '12px', borderRadius: '10px',
+              background: 'linear-gradient(135deg, #06ffa5, #00d4ff)',
+              border: 'none', color: '#0d1b2a', fontSize: '13px', fontWeight: '700',
               cursor: 'pointer', letterSpacing: '1px'
             }}>ENTENDIDO</button>
           </div>
