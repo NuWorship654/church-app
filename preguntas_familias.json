@@ -5,7 +5,7 @@
   ],
   "puntajes": {
     "Familia Azul": 0,
-    "Familia Roja": 0
+    "Familia Roja": 100
   },
   "preguntas": [
     {
@@ -40,7 +40,7 @@
       "id": 2,
       "pregunta": "¿Qué fruta es amarilla y los monos la adoran?",
       "categoria": "Frutas",
-      "veces_mostrada": 0,
+      "veces_mostrada": 1,
       "opciones": [
         {
           "texto": "Plátano",
@@ -89,5 +89,5 @@
       ]
     }
   ],
-  "ultima_actualizacion": "2026-03-04T23:21:28.495708"
+  "ultima_actualizacion": "2026-03-10T19:13:25.199588"
 }
