@@ -108,7 +108,6 @@ export default function Rehearsals() {
       borderRadius: '12px', overflow: 'hidden',
       animation: 'fadeInUp 0.3s ease forwards'
     }}>
-      {/* Header del ensayo */}
       <div style={{
         background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(6,255,165,0.06))',
         borderBottom: '1px solid rgba(245,158,11,0.15)',
@@ -147,7 +146,6 @@ export default function Rehearsals() {
         )}
       </div>
 
-      {/* Canciones */}
       <div style={{ padding: '16px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
           <p style={{ color: '#f59e0b', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: 0 }}>
@@ -166,7 +164,6 @@ export default function Rehearsals() {
           )}
         </div>
 
-        {/* Buscador agregar canción */}
         {showAddSong && (
           <div style={{
             background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(6,255,165,0.2)',
@@ -208,7 +205,6 @@ export default function Rehearsals() {
           </div>
         )}
 
-        {/* Tabs canciones */}
         {songs.length > 0 && (
           <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', overflowX: 'auto', paddingBottom: '4px' }}>
             {songs.map((ss, i) => (
@@ -266,7 +262,6 @@ export default function Rehearsals() {
           </div>
         )}
 
-        {/* SongViewer igual que en Canciones */}
         {activeSong && songs.length > 0 && (
           <SongViewer
             key={activeSong.id}
@@ -285,7 +280,6 @@ export default function Rehearsals() {
 
   return (
     <div style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ width: '8px', height: '40px', borderRadius: '4px', background: 'linear-gradient(180deg, #f59e0b, #06ffa5)' }} />
@@ -300,7 +294,6 @@ export default function Rehearsals() {
         )}
       </div>
 
-      {/* Vista móvil detalle */}
       {showDetail && selected ? (
         <div>
           <button onClick={() => setShowDetail(false)} style={{
@@ -312,8 +305,6 @@ export default function Rehearsals() {
         </div>
       ) : (
         <div className="rehearsals-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '20px' }}>
-
-          {/* Lista */}
           <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
             {loading ? (
               <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>Cargando...</div>
@@ -354,7 +345,6 @@ export default function Rehearsals() {
             )}
           </div>
 
-          {/* Panel desktop */}
           <div className="rehearsals-detail-desktop">
             {selected ? (
               <DetailPanel />
@@ -461,7 +451,6 @@ function RehearsalForm({ rehearsal, onClose, onSaved }) {
         animation: 'fadeInUp 0.3s ease forwards', margin: 'auto',
         overflow: 'hidden'
       }}>
-        {/* Banner top */}
         <div style={{
           background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(6,255,165,0.08))',
           borderBottom: '1px solid rgba(245,158,11,0.15)',
@@ -517,9 +506,7 @@ function RehearsalForm({ rehearsal, onClose, onSaved }) {
                 style={{ resize: 'vertical', lineHeight: '1.6' }}
                 placeholder="Canciones a ensayar, notas, detalles..." />
             </div>
-
             <div style={{ height: '1px', background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.2), transparent)' }} />
-
             <div style={{ display: 'flex', gap: '12px' }}>
               <button type="button" onClick={onClose} style={{
                 flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer',
