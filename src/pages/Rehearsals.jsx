@@ -463,7 +463,7 @@ function RehearsalForm({ rehearsal, onClose, onSaved }) {
               background: 'linear-gradient(135deg, rgba(245,158,11,0.2), rgba(6,255,165,0.1))',
               border: '1px solid rgba(245,158,11,0.3)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px'
-            }}>🎸</div>
+            }}>🎼🔥</div>
             <div>
               <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#f59e0b', margin: 0, letterSpacing: '1px' }}>
                 {rehearsal ? 'EDITAR ENSAYO' : 'NUEVO ENSAYO'}
