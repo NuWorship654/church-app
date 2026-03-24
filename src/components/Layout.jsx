@@ -44,6 +44,7 @@ export default function Layout() {
     { to: '/services', label: 'SERVICIOS', icon: '📅' },
     { to: '/rehearsals', label: 'ENSAYOS', icon: '🎸' },
     { to: '/songs', label: 'CANCIONES', icon: '♪' },
+    { to: '/secuencias', label: 'SECUENCIAS', icon: '🎵' },
     { to: '/stats', label: 'STATS', icon: '◈' },
     ...(isAdmin ? [{ to: '/users', label: 'USUARIOS', icon: '👥' }] : [])
   ]
@@ -190,7 +191,6 @@ export default function Layout() {
             display: 'flex', flexDirection: 'column', gap: '4px'
           }}>
             <InstallButton mobile={true} />
-
             <button onClick={() => { handleSignOut(); setMenuOpen(false) }} style={{
               width: '100%', padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
               background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
