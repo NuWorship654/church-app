@@ -3,15 +3,199 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import dayjs from 'dayjs'
 
+// ─── Player global ───────────────────────────────────────────────────────────
+function AudioPlayer({ sec, onClose }) {
+  const audioRef = useRef(null)
+  const [playing, setPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [volume, setVolume] = useState(1)
+  const progressRef = useRef(null)
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.src = sec.audio_url
+    audio.play()
+    setPlaying(true)
+
+    const onTime = () => setCurrentTime(audio.currentTime)
+    const onLoad = () => setDuration(audio.duration)
+    const onEnd  = () => setPlaying(false)
+
+    audio.addEventListener('timeupdate', onTime)
+    audio.addEventListener('loadedmetadata', onLoad)
+    audio.addEventListener('ended', onEnd)
+    return () => {
+      audio.removeEventListener('timeupdate', onTime)
+      audio.removeEventListener('loadedmetadata', onLoad)
+      audio.removeEventListener('ended', onEnd)
+      audio.pause()
+    }
+  }, [sec.audio_url])
+
+  const togglePlay = () => {
+    const audio = audioRef.current
+    if (playing) { audio.pause(); setPlaying(false) }
+    else { audio.play(); setPlaying(true) }
+  }
+
+  const seek = (e) => {
+    const bar = progressRef.current
+    if (!bar || !duration) return
+    const rect = bar.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const pct = Math.max(0, Math.min(1, x / rect.width))
+    audioRef.current.currentTime = pct * duration
+  }
+
+  const skip = (secs) => {
+    const audio = audioRef.current
+    audio.currentTime = Math.max(0, Math.min(duration, audio.currentTime + secs))
+  }
+
+  const fmt = (s) => {
+    if (!s || isNaN(s)) return '0:00'
+    const m = Math.floor(s / 60)
+    const sec = Math.floor(s % 60)
+    return `${m}:${sec.toString().padStart(2, '0')}`
+  }
+
+  const pct = duration ? (currentTime / duration) * 100 : 0
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 200,
+      background: 'rgba(2,8,23,0.97)', backdropFilter: 'blur(20px)',
+      borderTop: '1px solid rgba(124,58,237,0.3)',
+      padding: '12px 20px',
+      boxShadow: '0 -8px 40px rgba(124,58,237,0.15)'
+    }}>
+      <audio ref={audioRef} />
+
+      {/* Info canción */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+        <div style={{
+          width: '36px', height: '36px', borderRadius: '8px', flexShrink: 0,
+          background: 'linear-gradient(135deg, rgba(124,58,237,0.3), rgba(0,212,255,0.2))',
+          border: '1px solid rgba(124,58,237,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px'
+        }}>🎵</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ margin: 0, color: '#e2e8f0', fontSize: '13px', fontWeight: '600',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {sec.title}
+          </p>
+          {sec.songs && (
+            <p style={{ margin: 0, color: '#64748b', fontSize: '11px' }}>
+              {sec.songs.title} • {sec.songs.original_key}
+            </p>
+          )}
+        </div>
+        <button onClick={onClose} style={{
+          background: 'none', border: 'none', color: '#475569',
+          fontSize: '18px', cursor: 'pointer', flexShrink: 0
+        }}>✕</button>
+      </div>
+
+      {/* Barra de progreso */}
+      <div style={{ marginBottom: '10px' }}>
+        <div
+          ref={progressRef}
+          onClick={seek}
+          style={{
+            height: '4px', borderRadius: '2px', cursor: 'pointer',
+            background: 'rgba(124,58,237,0.2)', position: 'relative',
+            marginBottom: '6px'
+          }}
+          onMouseMove={e => {
+            if (e.buttons === 1) seek(e)
+          }}
+        >
+          {/* Buffer background */}
+          <div style={{
+            position: 'absolute', left: 0, top: 0, bottom: 0,
+            width: pct + '%', borderRadius: '2px',
+            background: 'linear-gradient(90deg, #7c3aed, #00d4ff)',
+            transition: 'width 0.1s linear'
+          }} />
+          {/* Thumb */}
+          <div style={{
+            position: 'absolute', top: '50%', transform: 'translate(-50%, -50%)',
+            left: pct + '%',
+            width: '12px', height: '12px', borderRadius: '50%',
+            background: '#ffffff',
+            boxShadow: '0 0 6px rgba(124,58,237,0.8)',
+            transition: 'left 0.1s linear'
+          }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: '#64748b', fontSize: '11px' }}>{fmt(currentTime)}</span>
+          <span style={{ color: '#64748b', fontSize: '11px' }}>{fmt(duration)}</span>
+        </div>
+      </div>
+
+      {/* Controles */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+        {/* Retroceder 10s */}
+        <button onClick={() => skip(-10)} style={{
+          background: 'none', border: 'none', color: '#64748b',
+          cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px'
+        }}>
+          <span style={{ fontSize: '18px' }}>⟨⟨</span>
+          <span style={{ fontSize: '9px' }}>10s</span>
+        </button>
+
+        {/* Play/Pause */}
+        <button onClick={togglePlay} style={{
+          width: '48px', height: '48px', borderRadius: '50%',
+          background: 'linear-gradient(135deg, #7c3aed, #00d4ff)',
+          border: 'none', color: 'white', fontSize: '20px',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 20px rgba(124,58,237,0.4)'
+        }}>
+          {playing ? '⏸' : '▶'}
+        </button>
+
+        {/* Adelantar 10s */}
+        <button onClick={() => skip(10)} style={{
+          background: 'none', border: 'none', color: '#64748b',
+          cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px'
+        }}>
+          <span style={{ fontSize: '18px' }}>⟩⟩</span>
+          <span style={{ fontSize: '9px' }}>10s</span>
+        </button>
+
+        {/* Volumen */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
+          <span style={{ color: '#475569', fontSize: '14px' }}>🔊</span>
+          <input
+            type="range" min="0" max="1" step="0.05"
+            value={volume}
+            onChange={e => {
+              const v = parseFloat(e.target.value)
+              setVolume(v)
+              audioRef.current.volume = v
+            }}
+            style={{ width: '70px', accentColor: '#7c3aed', cursor: 'pointer' }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Página principal ─────────────────────────────────────────────────────────
 export default function Secuencias() {
   const [secuencias, setSecuencias] = useState([])
   const [songs, setSongs] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [playing, setPlaying] = useState(null)
+  const [activePlayer, setActivePlayer] = useState(null)
   const [search, setSearch] = useState('')
-  const audioRef = useRef(null)
   const { canEdit } = useAuth()
 
   useEffect(() => { fetchSecuencias(); fetchSongs() }, [])
@@ -33,27 +217,13 @@ export default function Secuencias() {
 
   const handleDelete = async (sec) => {
     if (!confirm(`Eliminar "${sec.title}"?`)) return
-    // Borrar archivo de storage
     if (sec.audio_url) {
-      const path = sec.audio_url.split('/secuencias/')[1]
-      if (path) await supabase.storage.from('secuencias').remove([path])
+      const parts = sec.audio_url.split('/object/public/secuencias/')
+      if (parts[1]) await supabase.storage.from('secuencias').remove([parts[1]])
     }
     await supabase.from('secuencias').delete().eq('id', sec.id)
     setSecuencias(prev => prev.filter(s => s.id !== sec.id))
-    if (playing === sec.id) { setPlaying(null); if (audioRef.current) audioRef.current.pause() }
-  }
-
-  const togglePlay = (sec) => {
-    if (playing === sec.id) {
-      audioRef.current?.pause()
-      setPlaying(null)
-    } else {
-      if (audioRef.current) {
-        audioRef.current.src = sec.audio_url
-        audioRef.current.play()
-        setPlaying(sec.id)
-      }
-    }
+    if (activePlayer?.id === sec.id) setActivePlayer(null)
   }
 
   const filtered = secuencias.filter(s =>
@@ -62,8 +232,7 @@ export default function Secuencias() {
   )
 
   return (
-    <div style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
-      <audio ref={audioRef} onEnded={() => setPlaying(null)} />
+    <div style={{ animation: 'fadeInUp 0.5s ease forwards', paddingBottom: activePlayer ? '140px' : '0' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
@@ -119,13 +288,21 @@ export default function Secuencias() {
             <SecuenciaCard
               key={sec.id}
               sec={sec}
-              isPlaying={playing === sec.id}
-              onPlay={() => togglePlay(sec)}
+              isPlaying={activePlayer?.id === sec.id}
+              onPlay={() => setActivePlayer(activePlayer?.id === sec.id ? null : sec)}
               onEdit={canEdit ? () => { setEditing(sec); setShowForm(true) } : null}
               onDelete={canEdit ? () => handleDelete(sec) : null}
             />
           ))}
         </div>
+      )}
+
+      {/* Player fijo abajo */}
+      {activePlayer && (
+        <AudioPlayer
+          sec={activePlayer}
+          onClose={() => setActivePlayer(null)}
+        />
       )}
 
       {showForm && (
@@ -140,10 +317,8 @@ export default function Secuencias() {
   )
 }
 
+// ─── Card ─────────────────────────────────────────────────────────────────────
 function SecuenciaCard({ sec, isPlaying, onPlay, onEdit, onDelete }) {
-  const [progress, setProgress] = useState(0)
-  const audioRef = useRef(null)
-
   return (
     <div style={{
       background: isPlaying ? 'rgba(124,58,237,0.08)' : 'rgba(13,27,42,0.8)',
@@ -207,7 +382,7 @@ function SecuenciaCard({ sec, isPlaying, onPlay, onEdit, onDelete }) {
           <a href={sec.audio_url} download target="_blank" rel="noopener noreferrer" style={{
             padding: '6px 10px', borderRadius: '7px', cursor: 'pointer',
             background: 'rgba(6,255,165,0.08)', border: '1px solid rgba(6,255,165,0.2)',
-            color: '#06ffa5', fontSize: '11px', fontWeight: '600', textDecoration: 'none',
+            color: '#06ffa5', fontSize: '14px', textDecoration: 'none',
             display: 'flex', alignItems: 'center'
           }}>⬇</a>
           {onEdit && (
@@ -226,25 +401,11 @@ function SecuenciaCard({ sec, isPlaying, onPlay, onEdit, onDelete }) {
           )}
         </div>
       </div>
-
-      {/* Barra de progreso visual cuando está reproduciendo */}
-      {isPlaying && (
-        <div style={{
-          marginTop: '12px', height: '3px', borderRadius: '2px',
-          background: 'rgba(124,58,237,0.2)', overflow: 'hidden'
-        }}>
-          <div style={{
-            height: '100%', borderRadius: '2px',
-            background: 'linear-gradient(90deg, #7c3aed, #00d4ff)',
-            animation: 'progressBar 0.5s linear infinite',
-            width: '30%'
-          }} />
-        </div>
-      )}
     </div>
   )
 }
 
+// ─── Form ─────────────────────────────────────────────────────────────────────
 function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
   const { user } = useAuth()
   const [form, setForm] = useState({
@@ -262,8 +423,7 @@ function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
   const handleSubmit = async e => {
     e.preventDefault()
     if (!secuencia && !file) { setError('Selecciona un archivo de audio'); return }
-    setSaving(true)
-    setError('')
+    setSaving(true); setError('')
 
     try {
       let audio_url = secuencia?.audio_url || ''
@@ -271,53 +431,35 @@ function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
       let file_size = secuencia?.file_size || 0
 
       if (file) {
-        // Subir archivo
-        const ext = file.name.split('.').pop()
         const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
         setProgress(30)
-
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('secuencias')
-          .upload(fileName, file, { cacheControl: '3600', upsert: false })
-
+        const { error: uploadError } = await supabase.storage
+          .from('secuencias').upload(fileName, file, { cacheControl: '3600', upsert: false })
         if (uploadError) throw uploadError
         setProgress(70)
-
-        const { data: urlData } = supabase.storage
-          .from('secuencias')
-          .getPublicUrl(fileName)
-
+        const { data: urlData } = supabase.storage.from('secuencias').getPublicUrl(fileName)
         audio_url = urlData.publicUrl
         file_name = file.name
         file_size = file.size
-
-        // Borrar archivo anterior si editando
         if (secuencia?.audio_url) {
-          const oldPath = secuencia.audio_url.split('/secuencias/')[1]
-          if (oldPath) await supabase.storage.from('secuencias').remove([oldPath])
+          const parts = secuencia.audio_url.split('/object/public/secuencias/')
+          if (parts[1]) await supabase.storage.from('secuencias').remove([parts[1]])
         }
       }
 
       setProgress(90)
-      const payload = {
-        ...form,
-        song_id: form.song_id || null,
-        audio_url, file_name, file_size,
-        updated_at: new Date()
-      }
+      const payload = { ...form, song_id: form.song_id || null, audio_url, file_name, file_size, updated_at: new Date() }
 
       if (secuencia) {
         await supabase.from('secuencias').update(payload).eq('id', secuencia.id)
       } else {
         await supabase.from('secuencias').insert({ ...payload, created_by: user.id })
       }
-
       setProgress(100)
       onSaved()
     } catch (err) {
       setError('Error al subir: ' + err.message)
-      setSaving(false)
-      setProgress(0)
+      setSaving(false); setProgress(0)
     }
   }
 
@@ -334,13 +476,11 @@ function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
     }}>
       <div style={{
         background: 'linear-gradient(135deg, #0d1b2a 0%, #0a1628 100%)',
-        border: '1px solid rgba(124,58,237,0.3)',
-        borderRadius: '20px', width: '100%', maxWidth: '520px',
+        border: '1px solid rgba(124,58,237,0.3)', borderRadius: '20px',
+        width: '100%', maxWidth: '520px',
         boxShadow: '0 0 80px rgba(124,58,237,0.08)',
-        animation: 'fadeInUp 0.3s ease forwards', margin: 'auto',
-        overflow: 'hidden'
+        animation: 'fadeInUp 0.3s ease forwards', margin: 'auto', overflow: 'hidden'
       }}>
-        {/* Header */}
         <div style={{
           background: 'linear-gradient(135deg, rgba(124,58,237,0.12), rgba(0,212,255,0.08))',
           borderBottom: '1px solid rgba(124,58,237,0.15)',
@@ -358,9 +498,7 @@ function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
               <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#a78bfa', margin: 0 }}>
                 {secuencia ? 'EDITAR SECUENCIA' : 'SUBIR SECUENCIA'}
               </h2>
-              <p style={{ color: '#475569', fontSize: '11px', margin: 0 }}>
-                MP3, WAV, OGG, M4A, FLAC...
-              </p>
+              <p style={{ color: '#475569', fontSize: '11px', margin: 0 }}>MP3, WAV, OGG, M4A, FLAC...</p>
             </div>
           </div>
           <button onClick={onClose} style={{
@@ -373,7 +511,6 @@ function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
 
         <div style={{ padding: '24px' }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-
             <div>
               <label style={labelStyle}>Título *</label>
               <input value={form.title} onChange={e => set('title', e.target.value)}
@@ -393,33 +530,21 @@ function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(124,58,237,0.6)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(124,58,237,0.3)'}
               >
-                <input
-                  id="audioInput" type="file"
+                <input id="audioInput" type="file"
                   accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.aac,.wma,.aiff"
                   style={{ display: 'none' }}
-                  onChange={e => setFile(e.target.files[0])}
-                />
+                  onChange={e => setFile(e.target.files[0])} />
                 {file ? (
                   <div>
-                    <p style={{ color: '#a78bfa', fontSize: '13px', margin: '0 0 4px', fontWeight: '600' }}>
-                      ✓ {file.name}
-                    </p>
-                    <p style={{ color: '#64748b', fontSize: '11px', margin: 0 }}>
-                      {(file.size / (1024 * 1024)).toFixed(1)} MB
-                    </p>
+                    <p style={{ color: '#a78bfa', fontSize: '13px', margin: '0 0 4px', fontWeight: '600' }}>✓ {file.name}</p>
+                    <p style={{ color: '#64748b', fontSize: '11px', margin: 0 }}>{(file.size / (1024 * 1024)).toFixed(1)} MB</p>
                   </div>
                 ) : (
                   <div>
-                    <p style={{ color: '#475569', fontSize: '13px', margin: '0 0 4px' }}>
-                      Arrastra tu archivo aquí o haz click
-                    </p>
-                    <p style={{ color: '#334155', fontSize: '11px', margin: 0 }}>
-                      MP3, WAV, OGG, M4A, FLAC, AAC...
-                    </p>
+                    <p style={{ color: '#475569', fontSize: '13px', margin: '0 0 4px' }}>Arrastra tu archivo aquí o haz click</p>
+                    <p style={{ color: '#334155', fontSize: '11px', margin: 0 }}>MP3, WAV, OGG, M4A, FLAC, AAC...</p>
                     {secuencia?.file_name && (
-                      <p style={{ color: '#7c3aed', fontSize: '11px', margin: '8px 0 0' }}>
-                        Actual: {secuencia.file_name}
-                      </p>
+                      <p style={{ color: '#7c3aed', fontSize: '11px', margin: '8px 0 0' }}>Actual: {secuencia.file_name}</p>
                     )}
                   </div>
                 )}
@@ -473,8 +598,7 @@ function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
             <div style={{ display: 'flex', gap: '12px' }}>
               <button type="button" onClick={onClose} style={{
                 flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer',
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(100,116,139,0.3)',
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(100,116,139,0.3)',
                 color: '#64748b', fontSize: '13px', fontWeight: '600'
               }}>CANCELAR</button>
               <button type="submit" disabled={saving} style={{
