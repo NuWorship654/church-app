@@ -17,10 +17,13 @@ export default function Songs() {
   const [search, setSearch] = useState('')
   const [filterKey, setFilterKey] = useState('')
   const [filterFav, setFilterFav] = useState(false)
+  const [sortBy, setSortBy] = useState('title')
+  const [sortDir, setSortDir] = useState('asc')
   const [importMode, setImportMode] = useState(false)
   const [importText, setImportText] = useState('')
   const [showViewer, setShowViewer] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
+  const [viewMode, setViewMode] = useState('list') // 'list' | 'grid'
   const { canEdit, user } = useAuth()
 
   const fetchSongs = async () => {
@@ -51,7 +54,6 @@ export default function Songs() {
 
   useEffect(() => { fetchSongs(); fetchFavorites() }, [])
 
-  // Detectar cambios de conexión
   useEffect(() => {
     const onOnline = () => fetchSongs()
     const onOffline = () => setIsOffline(true)
@@ -80,19 +82,72 @@ export default function Songs() {
     fetchSongs()
   }
 
-  const filtered = songs.filter(s => {
-    const matchSearch = s.title.toLowerCase().includes(search.toLowerCase())
-    const matchKey = filterKey ? s.original_key === filterKey : true
-    const matchFav = filterFav ? favorites.includes(s.id) : true
-    return matchSearch && matchKey && matchFav
-  })
+  const toggleSort = (field) => {
+    if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(field); setSortDir('asc') }
+  }
 
-  // Índice de la canción seleccionada en la lista filtrada
+  const filtered = songs
+    .filter(s => {
+      const matchSearch = s.title.toLowerCase().includes(search.toLowerCase())
+      const matchKey = filterKey ? s.original_key === filterKey : true
+      const matchFav = filterFav ? favorites.includes(s.id) : true
+      return matchSearch && matchKey && matchFav
+    })
+    .sort((a, b) => {
+      let valA, valB
+      switch (sortBy) {
+        case 'key':
+          valA = KEYS.indexOf(a.original_key); valB = KEYS.indexOf(b.original_key)
+          break
+        case 'bpm':
+          valA = a.bpm || 0; valB = b.bpm || 0
+          break
+        case 'fav':
+          valA = favorites.includes(a.id) ? 0 : 1
+          valB = favorites.includes(b.id) ? 0 : 1
+          break
+        case 'title':
+        default:
+          valA = a.title.toLowerCase(); valB = b.title.toLowerCase()
+          break
+      }
+      if (valA < valB) return sortDir === 'asc' ? -1 : 1
+      if (valA > valB) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+
   const selectedIndex = filtered.findIndex(s => s.id === selected?.id)
   const hasPrev = selectedIndex > 0
   const hasNext = selectedIndex < filtered.length - 1
   const goNext = () => { if (hasNext) setSelected(filtered[selectedIndex + 1]) }
   const goPrev = () => { if (hasPrev) setSelected(filtered[selectedIndex - 1]) }
+
+  const SortBtn = ({ field, label }) => (
+    <button onClick={() => toggleSort(field)} style={{
+      display: 'flex', alignItems: 'center', gap: '4px',
+      padding: '4px 10px', borderRadius: '6px', cursor: 'pointer',
+      background: sortBy === field ? 'rgba(0,212,255,0.12)' : 'rgba(0,0,0,0.2)',
+      border: '1px solid ' + (sortBy === field ? 'rgba(0,212,255,0.4)' : 'rgba(0,212,255,0.08)'),
+      color: sortBy === field ? '#00d4ff' : '#475569',
+      fontSize: '10px', fontWeight: '700', letterSpacing: '0.5px', transition: 'all 0.2s'
+    }}>
+      {label}
+      {sortBy === field
+        ? <span style={{ fontSize: '9px' }}>{sortDir === 'asc' ? ' ↑' : ' ↓'}</span>
+        : <span style={{ color: '#334155', fontSize: '9px' }}> ↕</span>}
+    </button>
+  )
+
+  // Agrupar por letra inicial
+  const grouped = filtered.reduce((acc, song) => {
+    const letter = song.title[0]?.toUpperCase() || '#'
+    if (!acc[letter]) acc[letter] = []
+    acc[letter].push(song)
+    return acc
+  }, {})
+
+  const showGrouped = sortBy === 'title' && !search
 
   return (
     <div style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
@@ -104,22 +159,43 @@ export default function Songs() {
           borderRadius: '8px', padding: '8px 16px', marginBottom: '16px',
           display: 'flex', alignItems: 'center', gap: '8px'
         }}>
-          <span style={{ fontSize: '14px' }}>⚠️</span>
+          <span>⚠️</span>
           <span style={{ color: '#f59e0b', fontSize: '12px', fontWeight: '600' }}>
             Sin conexión — mostrando canciones guardadas localmente
           </span>
         </div>
       )}
 
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ width: '8px', height: '40px', borderRadius: '4px', background: 'linear-gradient(180deg, #7c3aed, #00d4ff)' }} />
           <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '22px', fontWeight: '700', color: '#e2e8f0', margin: 0 }}>
             CANCIONES
           </h1>
-          <span style={{ color: '#475569', fontSize: '12px' }}>({filtered.length})</span>
+          <span style={{
+            fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
+            background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.2)',
+            color: '#00d4ff'
+          }}>{filtered.length}</span>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {/* Toggle vista lista/grid */}
+          <div style={{
+            display: 'flex', background: 'rgba(0,0,0,0.3)',
+            borderRadius: '8px', border: '1px solid rgba(0,212,255,0.1)', overflow: 'hidden'
+          }}>
+            <button onClick={() => setViewMode('list')} style={{
+              padding: '6px 10px', border: 'none', cursor: 'pointer',
+              background: viewMode === 'list' ? 'rgba(0,212,255,0.15)' : 'transparent',
+              color: viewMode === 'list' ? '#00d4ff' : '#475569', fontSize: '13px'
+            }}>☰</button>
+            <button onClick={() => setViewMode('grid')} style={{
+              padding: '6px 10px', border: 'none', cursor: 'pointer',
+              background: viewMode === 'grid' ? 'rgba(0,212,255,0.15)' : 'transparent',
+              color: viewMode === 'grid' ? '#00d4ff' : '#475569', fontSize: '13px'
+            }}>⊞</button>
+          </div>
           {canEdit && (
             <>
               <button onClick={() => setImportMode(!importMode)} style={{
@@ -137,6 +213,7 @@ export default function Songs() {
         </div>
       </div>
 
+      {/* Import */}
       {importMode && (
         <div style={{
           background: 'rgba(6,255,165,0.05)', border: '1px solid rgba(6,255,165,0.2)',
@@ -167,100 +244,145 @@ export default function Songs() {
         </div>
       )}
 
-      {/* Búsqueda y filtros */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-        <input type="text" placeholder="Buscar cancion..."
-          value={search} onChange={e => setSearch(e.target.value)}
-          className="input-field" style={{ flex: 1, minWidth: '140px' }}
-        />
-        <select value={filterKey} onChange={e => setFilterKey(e.target.value)}
-          className="input-field" style={{ width: '80px' }}>
-          <option value="">Tono</option>
-          {KEYS.map(k => <option key={k} value={k}>{k}</option>)}
-        </select>
-        <button onClick={() => setFilterFav(!filterFav)} style={{
-          padding: '8px 14px', borderRadius: '8px', cursor: 'pointer',
-          background: filterFav ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)',
-          border: '1px solid ' + (filterFav ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.1)'),
-          color: filterFav ? '#f59e0b' : '#64748b', fontSize: '14px'
-        }}>{filterFav ? '★' : '☆'}</button>
+      {/* Búsqueda + filtros + ordenamiento */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <input type="text" placeholder="Buscar cancion..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="input-field" style={{ flex: 1, minWidth: '140px' }}
+          />
+          <select value={filterKey} onChange={e => setFilterKey(e.target.value)}
+            className="input-field" style={{ width: '90px' }}>
+            <option value="">Tono</option>
+            {KEYS.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
+          <button onClick={() => setFilterFav(!filterFav)} style={{
+            padding: '8px 14px', borderRadius: '8px', cursor: 'pointer',
+            background: filterFav ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)',
+            border: '1px solid ' + (filterFav ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.1)'),
+            color: filterFav ? '#f59e0b' : '#64748b', fontSize: '14px'
+          }} title="Solo favoritos">{filterFav ? '★' : '☆'}</button>
+        </div>
+
+        {/* Ordenamiento */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <span style={{ color: '#334155', fontSize: '10px', letterSpacing: '1px' }}>ORDENAR:</span>
+          <SortBtn field="title" label="NOMBRE" />
+          <SortBtn field="key"   label="TONO" />
+          <SortBtn field="bpm"   label="BPM" />
+          <SortBtn field="fav"   label="★ FAV" />
+          {(search || filterKey || filterFav) && (
+            <button onClick={() => { setSearch(''); setFilterKey(''); setFilterFav(false) }} style={{
+              padding: '4px 10px', borderRadius: '6px', cursor: 'pointer',
+              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+              color: '#f87171', fontSize: '10px', fontWeight: '600', marginLeft: '4px'
+            }}>✕ LIMPIAR</button>
+          )}
+        </div>
       </div>
 
-      {/* VISTA MÓVIL — canción seleccionada */}
+      {/* Vista móvil */}
       {showViewer && selected ? (
         <div>
-          <button onClick={() => { setShowViewer(false) }} style={{
+          <button onClick={() => setShowViewer(false)} style={{
             display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px',
             background: 'none', border: 'none', color: '#00d4ff', cursor: 'pointer',
             fontSize: '13px', fontWeight: '600'
           }}>← VOLVER A LA LISTA</button>
-
           <SongViewer
-            song={selected}
-            autoExpand={true}
-            hasNext={hasNext}
-            hasPrev={hasPrev}
-            onNext={goNext}
-            onPrev={goPrev}
+            song={selected} autoExpand={true}
+            hasNext={hasNext} hasPrev={hasPrev}
+            onNext={goNext} onPrev={goPrev}
             serviceSongs={filtered}
           />
         </div>
       ) : (
         <div className="songs-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '20px' }}>
 
-          {/* Lista de canciones */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
+          {/* Lista */}
+          <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
             {loading ? (
               <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>Cargando...</div>
             ) : filtered.length === 0 ? (
               <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>
                 {search || filterKey || filterFav ? 'Sin resultados' : 'No hay canciones aun'}
               </div>
-            ) : (
-              filtered.map((song, i) => (
-                <div key={song.id} onClick={() => { setSelected(song); setShowViewer(true) }} style={{
-                  background: selected?.id === song.id ? 'rgba(0,212,255,0.08)' : 'rgba(13,27,42,0.8)',
-                  border: '1px solid ' + (selected?.id === song.id ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.1)'),
-                  borderRadius: '10px', padding: '12px 14px', cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  animation: 'slideIn 0.3s ease ' + (i * 0.03) + 's forwards', opacity: 0
-                }}
-                onMouseEnter={e => { if (selected?.id !== song.id) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.3)' }}
-                onMouseLeave={e => { if (selected?.id !== song.id) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.1)' }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                        {favorites.includes(song.id) && <span style={{ color: '#f59e0b', fontSize: '11px' }}>★</span>}
-                        <p style={{
-                          margin: 0, fontWeight: '600', color: '#e2e8f0', fontSize: '14px',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                        }}>{song.title}</p>
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <span style={{
-                          fontSize: '10px', padding: '1px 7px', borderRadius: '20px',
-                          background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)',
-                          color: '#a78bfa', letterSpacing: '1px'
-                        }}>{song.original_key || '?'}</span>
-                        {song.bpm > 0 && <span style={{ fontSize: '10px', color: '#06ffa5' }}>♩ {song.bpm}</span>}
-                      </div>
+            ) : viewMode === 'grid' ? (
+              /* Vista grid */
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
+                {filtered.map(song => (
+                  <div key={song.id} onClick={() => { setSelected(song); setShowViewer(true) }} style={{
+                    background: selected?.id === song.id ? 'rgba(0,212,255,0.1)' : 'rgba(13,27,42,0.8)',
+                    border: '1px solid ' + (selected?.id === song.id ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.1)'),
+                    borderRadius: '10px', padding: '12px', cursor: 'pointer',
+                    transition: 'all 0.2s', textAlign: 'center'
+                  }}
+                  onMouseEnter={e => { if (selected?.id !== song.id) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.3)' }}
+                  onMouseLeave={e => { if (selected?.id !== song.id) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.1)' }}
+                  >
+                    <div style={{
+                      width: '40px', height: '40px', borderRadius: '50%', margin: '0 auto 8px',
+                      background: 'linear-gradient(135deg, rgba(124,58,237,0.3), rgba(0,212,255,0.2))',
+                      border: '1px solid rgba(0,212,255,0.2)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '11px', fontWeight: '700', color: '#00d4ff',
+                      fontFamily: 'Orbitron, sans-serif'
+                    }}>
+                      {song.original_key || '?'}
                     </div>
-                    {canEdit && (
-                      <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
-                        <button onClick={() => { setEditing(song); setShowForm(true) }} style={{
-                          background: 'none', border: 'none', color: '#00d4ff',
-                          cursor: 'pointer', fontSize: '13px', padding: '4px 8px'
-                        }}>✎</button>
-                        <button onClick={() => handleDelete(song.id)} style={{
-                          background: 'none', border: 'none', color: '#f87171',
-                          cursor: 'pointer', fontSize: '13px', padding: '4px 8px'
-                        }}>✕</button>
-                      </div>
+                    <p style={{
+                      margin: '0 0 4px', fontSize: '11px', fontWeight: '600', color: '#e2e8f0',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                    }}>{song.title}</p>
+                    {song.bpm > 0 && (
+                      <span style={{ fontSize: '10px', color: '#06ffa5' }}>♩{song.bpm}</span>
+                    )}
+                    {favorites.includes(song.id) && (
+                      <span style={{ fontSize: '10px', color: '#f59e0b', marginLeft: '4px' }}>★</span>
                     )}
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
+            ) : (
+              /* Vista lista con agrupación por letra */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {showGrouped ? (
+                  Object.keys(grouped).sort().map(letter => (
+                    <div key={letter}>
+                      <div style={{
+                        position: 'sticky', top: 0, zIndex: 1,
+                        padding: '4px 8px', marginBottom: '4px',
+                        background: 'rgba(2,8,23,0.9)', backdropFilter: 'blur(4px)',
+                        borderLeft: '2px solid rgba(0,212,255,0.4)'
+                      }}>
+                        <span style={{
+                          fontFamily: 'Orbitron, sans-serif', fontSize: '11px',
+                          color: '#00d4ff', fontWeight: '700', letterSpacing: '2px'
+                        }}>{letter}</span>
+                      </div>
+                      {grouped[letter].map((song, i) => (
+                        <SongRow key={song.id} song={song} selected={selected}
+                          favorites={favorites} canEdit={canEdit}
+                          onSelect={() => { setSelected(song); setShowViewer(true) }}
+                          onEdit={() => { setEditing(song); setShowForm(true) }}
+                          onDelete={() => handleDelete(song.id)}
+                          index={i}
+                        />
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  filtered.map((song, i) => (
+                    <SongRow key={song.id} song={song} selected={selected}
+                      favorites={favorites} canEdit={canEdit}
+                      onSelect={() => { setSelected(song); setShowViewer(true) }}
+                      onEdit={() => { setEditing(song); setShowForm(true) }}
+                      onDelete={() => handleDelete(song.id)}
+                      index={i}
+                    />
+                  ))
+                )}
+              </div>
             )}
           </div>
 
@@ -269,10 +391,8 @@ export default function Songs() {
             {selected ? (
               <SongViewer
                 song={selected}
-                hasNext={hasNext}
-                hasPrev={hasPrev}
-                onNext={goNext}
-                onPrev={goPrev}
+                hasNext={hasNext} hasPrev={hasPrev}
+                onNext={goNext} onPrev={goPrev}
                 serviceSongs={filtered}
               />
             ) : (
@@ -281,7 +401,10 @@ export default function Songs() {
                 borderRadius: '12px', padding: '60px 20px', textAlign: 'center', color: '#64748b'
               }}>
                 <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.3 }}>♪</div>
-                <p style={{ margin: 0, fontSize: '14px' }}>Selecciona una cancion para ver los detalles</p>
+                <p style={{ margin: '0 0 8px', fontSize: '14px' }}>Selecciona una cancion para ver los detalles</p>
+                <p style={{ margin: 0, fontSize: '11px', color: '#334155' }}>
+                  {filtered.length} cancion{filtered.length !== 1 ? 'es' : ''} disponible{filtered.length !== 1 ? 's' : ''}
+                </p>
               </div>
             )}
           </div>
@@ -292,6 +415,71 @@ export default function Songs() {
         <SongForm song={editing} onClose={() => setShowForm(false)}
           onSaved={() => { fetchSongs(); setShowForm(false) }} />
       )}
+    </div>
+  )
+}
+
+function SongRow({ song, selected, favorites, canEdit, onSelect, onEdit, onDelete, index }) {
+  const isSelected = selected?.id === song.id
+  return (
+    <div onClick={onSelect} style={{
+      background: isSelected ? 'rgba(0,212,255,0.08)' : 'rgba(13,27,42,0.8)',
+      border: '1px solid ' + (isSelected ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.1)'),
+      borderRadius: '10px', padding: '10px 14px', cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      animation: 'slideIn 0.3s ease ' + (index * 0.02) + 's forwards', opacity: 0
+    }}
+    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.3)' }}
+    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.1)' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Tono como badge circular */}
+          <div style={{
+            width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0,
+            background: isSelected ? 'rgba(0,212,255,0.2)' : 'rgba(124,58,237,0.15)',
+            border: '1px solid ' + (isSelected ? 'rgba(0,212,255,0.5)' : 'rgba(124,58,237,0.3)'),
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '9px', fontWeight: '700', letterSpacing: '0.5px',
+            color: isSelected ? '#00d4ff' : '#a78bfa',
+            fontFamily: 'Orbitron, sans-serif'
+          }}>
+            {song.original_key || '?'}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              {favorites.includes(song.id) && <span style={{ color: '#f59e0b', fontSize: '10px' }}>★</span>}
+              <p style={{
+                margin: 0, fontWeight: '600', color: isSelected ? '#ffffff' : '#e2e8f0',
+                fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+              }}>{song.title}</p>
+            </div>
+            {song.bpm > 0 && (
+              <span style={{ fontSize: '10px', color: '#06ffa5' }}>♩ {song.bpm} BPM</span>
+            )}
+          </div>
+        </div>
+        {canEdit && (
+          <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+            <button onClick={onEdit} style={{
+              background: 'none', border: 'none', color: '#00d4ff',
+              cursor: 'pointer', fontSize: '12px', padding: '4px 7px',
+              borderRadius: '5px', transition: 'background 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,212,255,0.1)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >✎</button>
+            <button onClick={onDelete} style={{
+              background: 'none', border: 'none', color: '#f87171',
+              cursor: 'pointer', fontSize: '12px', padding: '4px 7px',
+              borderRadius: '5px', transition: 'background 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >✕</button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
