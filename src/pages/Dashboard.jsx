@@ -4,7 +4,9 @@ import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
+import relativeTime from 'dayjs/plugin/relativeTime'
 dayjs.locale('es')
+dayjs.extend(relativeTime)
 
 export default function Dashboard() {
   const { profile } = useAuth()
@@ -12,29 +14,82 @@ export default function Dashboard() {
   const [nextService, setNextService] = useState(null)
   const [nextRehearsal, setNextRehearsal] = useState(null)
   const [totalSongs, setTotalSongs] = useState(0)
+  const [totalServices, setTotalServices] = useState(0)
+  const [totalRehearsals, setTotalRehearsals] = useState(0)
   const [recentSongs, setRecentSongs] = useState([])
+  const [serviceSongs, setServiceSongs] = useState([])
+  const [rehearsalSongs, setRehearsalSongs] = useState([])
+  const [countdown, setCountdown] = useState('')
   const [loading, setLoading] = useState(true)
+  const [now, setNow] = useState(dayjs())
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
-      const now = new Date().toISOString()
+      const nowIso = new Date().toISOString()
 
-      const [servicesRes, rehearsalsRes, songsRes, recentRes] = await Promise.all([
-        supabase.from('services').select('*').gte('date', now).order('date').limit(1),
-        supabase.from('rehearsals').select('*').gte('date', now).order('date').limit(1),
+      const [servicesRes, rehearsalsRes, songsRes, recentRes,
+             totalServicesRes, totalRehearsalsRes] = await Promise.all([
+        supabase.from('services').select('*').gte('date', nowIso).order('date').limit(1),
+        supabase.from('rehearsals').select('*').gte('date', nowIso).order('date').limit(1),
         supabase.from('songs').select('id', { count: 'exact' }),
-        supabase.from('songs').select('id, title, original_key, bpm').order('created_at', { ascending: false }).limit(5)
+        supabase.from('songs').select('id, title, original_key, bpm, preferred_key')
+          .order('created_at', { ascending: false }).limit(6),
+        supabase.from('services').select('id', { count: 'exact' }),
+        supabase.from('rehearsals').select('id', { count: 'exact' }),
       ])
 
-      setNextService(servicesRes.data?.[0] || null)
-      setNextRehearsal(rehearsalsRes.data?.[0] || null)
+      const svc = servicesRes.data?.[0] || null
+      const reh = rehearsalsRes.data?.[0] || null
+
+      setNextService(svc)
+      setNextRehearsal(reh)
       setTotalSongs(songsRes.count || 0)
+      setTotalServices(totalServicesRes.count || 0)
+      setTotalRehearsals(totalRehearsalsRes.count || 0)
       setRecentSongs(recentRes.data || [])
+
+      // Canciones del próximo servicio
+      if (svc) {
+        const { data } = await supabase.from('service_songs')
+          .select('*, songs(title, original_key, preferred_key)')
+          .eq('service_id', svc.id).order('order_index').limit(8)
+        setServiceSongs(data || [])
+      }
+
+      // Canciones del próximo ensayo
+      if (reh) {
+        const { data } = await supabase.from('rehearsal_songs')
+          .select('*, songs(title, original_key, preferred_key)')
+          .eq('rehearsal_id', reh.id).order('order_index').limit(8)
+        setRehearsalSongs(data || [])
+      }
+
       setLoading(false)
     }
     fetchData()
   }, [])
+
+  // Reloj en tiempo real
+  useEffect(() => {
+    const timer = setInterval(() => setNow(dayjs()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  // Cuenta regresiva al próximo evento
+  useEffect(() => {
+    const target = nextService || nextRehearsal
+    if (!target) return
+    const diff = dayjs(target.date).diff(now, 'second')
+    if (diff <= 0) { setCountdown('¡Ahora!'); return }
+    const d = Math.floor(diff / 86400)
+    const h = Math.floor((diff % 86400) / 3600)
+    const m = Math.floor((diff % 3600) / 60)
+    const s = diff % 60
+    if (d > 0) setCountdown(`${d}d ${h}h ${m}m`)
+    else if (h > 0) setCountdown(`${h}h ${m}m ${s}s`)
+    else setCountdown(`${m}m ${s}s`)
+  }, [now, nextService, nextRehearsal])
 
   const roleLabels = {
     admin: 'Administrador', worship_leader: 'Líder de Alabanza',
@@ -51,182 +106,318 @@ export default function Dashboard() {
     return 'Buenas noches'
   }
 
+  const nextEvent = nextService || nextRehearsal
+  const isService = !!nextService
+
   return (
     <div style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
 
-      {/* Banner iglesia */}
+      {/* Hero Banner */}
       <div style={{
-        borderRadius: '16px', marginBottom: '24px', overflow: 'hidden',
-        background: 'linear-gradient(135deg, #1a2f4a 0%, #0d1b2a 50%, #162035 100%)',
+        borderRadius: '20px', marginBottom: '20px', overflow: 'hidden',
+        background: 'linear-gradient(135deg, #0d1b2a 0%, #111827 50%, #0d1b2a 100%)',
         border: '1px solid rgba(74,111,165,0.3)',
-        boxShadow: '0 0 40px rgba(74,111,165,0.1)',
         position: 'relative'
       }}>
+        {/* Fondo decorativo */}
         <div style={{
-          position: 'absolute', inset: 0,
-          background: 'radial-gradient(ellipse at 80% 50%, rgba(74,111,165,0.2) 0%, transparent 60%)',
-          pointerEvents: 'none'
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: 'radial-gradient(ellipse at 80% 50%, rgba(74,111,165,0.15) 0%, transparent 60%), radial-gradient(ellipse at 20% 80%, rgba(124,58,237,0.08) 0%, transparent 50%)'
         }} />
-        <div style={{ padding: '28px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, #4a6fa5, #7c3aed, #00d4ff)' }} />
+
+        <div style={{ padding: '24px', position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '60px', height: '60px', borderRadius: '14px', flexShrink: 0,
+                background: 'linear-gradient(135deg, #4a6fa5, #2d4f7c)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 24px rgba(74,111,165,0.4)', overflow: 'hidden'
+              }}>
+                <img src="/logo.png" alt="Logo" style={{ width: '44px', height: '44px', objectFit: 'contain' }} />
+              </div>
+              <div>
+                <p style={{ color: '#7ab3e0', fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', margin: '0 0 3px' }}>
+                  NuWorship
+                </p>
+                <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '17px', fontWeight: '900', color: '#e2e8f0', margin: '0 0 2px' }}>
+                  {greet()}, {profile?.full_name?.split(' ')[0] || 'Usuario'} 👋
+                </h2>
+                <span style={{
+                  padding: '2px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '700',
+                  letterSpacing: '1px', textTransform: 'uppercase',
+                  background: (roleColors[profile?.role] || '#64748b') + '22',
+                  border: '1px solid ' + (roleColors[profile?.role] || '#64748b') + '44',
+                  color: roleColors[profile?.role] || '#64748b'
+                }}>
+                  {roleLabels[profile?.role] || profile?.role}
+                </span>
+              </div>
+            </div>
+
+            {/* Reloj */}
+            <div style={{ textAlign: 'right' }}>
+              <p style={{
+                fontFamily: 'Orbitron, sans-serif', fontSize: '22px', fontWeight: '900',
+                color: '#e2e8f0', margin: '0 0 2px', letterSpacing: '2px'
+              }}>
+                {now.format('HH:mm')}
+              </p>
+              <p style={{ color: '#64748b', fontSize: '11px', margin: 0, textTransform: 'capitalize' }}>
+                {now.format('dddd DD [de] MMMM')}
+              </p>
+            </div>
+          </div>
+
+          {/* Cuenta regresiva próximo evento */}
+          {nextEvent && (
             <div style={{
-              width: '64px', height: '64px', borderRadius: '16px', flexShrink: 0,
-              background: 'linear-gradient(135deg, #4a6fa5, #2d4f7c)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 20px rgba(74,111,165,0.5)', overflow: 'hidden'
+              marginTop: '16px', padding: '12px 16px', borderRadius: '10px',
+              background: isService ? 'rgba(0,212,255,0.06)' : 'rgba(245,158,11,0.06)',
+              border: '1px solid ' + (isService ? 'rgba(0,212,255,0.2)' : 'rgba(245,158,11,0.2)'),
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px'
             }}>
-              <img src="/logo.png" alt="Logo" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
+              <div>
+                <p style={{ margin: '0 0 2px', color: '#64748b', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  {isService ? '📅 Próximo servicio' : '🎸 Próximo ensayo'}
+                </p>
+                <p style={{ margin: 0, color: '#e2e8f0', fontSize: '14px', fontWeight: '700' }}>
+                  {nextEvent.title}
+                </p>
+                <p style={{ margin: 0, color: isService ? '#00d4ff' : '#f59e0b', fontSize: '11px' }}>
+                  {dayjs(nextEvent.date).format('dddd DD [de] MMMM · HH:mm')}
+                </p>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ margin: '0 0 2px', color: '#475569', fontSize: '9px', letterSpacing: '1px' }}>FALTAN</p>
+                <p style={{
+                  fontFamily: 'Orbitron, sans-serif', fontSize: '16px', fontWeight: '900',
+                  color: isService ? '#00d4ff' : '#f59e0b', margin: 0
+                }}>{countdown}</p>
+              </div>
             </div>
-            <div>
-              <p style={{ color: '#7ab3e0', fontSize: '11px', letterSpacing: '3px', textTransform: 'uppercase', margin: '0 0 4px' }}>
-                HAGEO 2:9
-              </p>
-              <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '18px', fontWeight: '900', color: '#e2e8f0', margin: '0 0 2px' }}>
-                BIENVENIDO A CASA
-              </h2>
-              <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
-                Un lugar para todos · Domingos 10:30AM
-              </p>
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 4px' }}>{greet()},</p>
-            <p style={{ color: '#e2e8f0', fontSize: '16px', fontWeight: '700', margin: '0 0 4px' }}>
-              {profile?.full_name?.split(' ')[0] || 'Usuario'}
-            </p>
-            <span style={{
-              padding: '3px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '700',
-              letterSpacing: '1px', textTransform: 'uppercase',
-              background: (roleColors[profile?.role] || '#64748b') + '22',
-              border: '1px solid ' + (roleColors[profile?.role] || '#64748b') + '44',
-              color: roleColors[profile?.role] || '#64748b'
-            }}>
-              {roleLabels[profile?.role] || profile?.role}
-            </span>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Stats rápidas */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
         {[
-          { label: 'CANCIONES', value: totalSongs, color: '#4a6fa5', icon: '♪', path: '/songs' },
-          { label: 'PROXIMO SERVICIO', value: nextService ? dayjs(nextService.date).format('DD MMM') : '—', color: '#00d4ff', icon: '📅', path: '/services' },
-          { label: 'PROXIMO ENSAYO', value: nextRehearsal ? dayjs(nextRehearsal.date).format('DD MMM') : '—', color: '#f59e0b', icon: '🎸', path: '/rehearsals' }
+          { label: 'CANCIONES', value: totalSongs, color: '#7c3aed', icon: '♪', path: '/songs' },
+          { label: 'SERVICIOS', value: totalServices, color: '#00d4ff', icon: '📅', path: '/services' },
+          { label: 'ENSAYOS', value: totalRehearsals, color: '#f59e0b', icon: '🎸', path: '/rehearsals' }
         ].map((card, i) => (
           <div key={i} onClick={() => navigate(card.path)} style={{
-            background: 'rgba(13,27,42,0.9)', border: '1px solid ' + card.color + '33',
-            borderRadius: '12px', padding: '16px 12px', textAlign: 'center', cursor: 'pointer',
-            transition: 'all 0.2s', animation: 'fadeInUp 0.4s ease ' + (i * 0.1) + 's forwards', opacity: 0
+            background: 'rgba(13,27,42,0.9)',
+            border: '1px solid ' + card.color + '25',
+            borderRadius: '12px', padding: '14px 10px', textAlign: 'center', cursor: 'pointer',
+            transition: 'all 0.2s',
+            animation: 'fadeInUp 0.4s ease ' + (i * 0.08) + 's forwards', opacity: 0
           }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = card.color + '66'; e.currentTarget.style.transform = 'translateY(-2px)' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = card.color + '33'; e.currentTarget.style.transform = 'translateY(0)' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = card.color + '55'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = card.color + '25'; e.currentTarget.style.transform = 'translateY(0)' }}
           >
-            <div style={{ fontSize: '22px', marginBottom: '6px' }}>{card.icon}</div>
-            <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '18px', fontWeight: '900', color: card.color }}>
-              {loading ? '...' : card.value}
+            <div style={{ fontSize: '20px', marginBottom: '5px' }}>{card.icon}</div>
+            <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '22px', fontWeight: '900', color: card.color }}>
+              {loading ? '·' : card.value}
             </div>
-            <div style={{ color: '#475569', fontSize: '9px', letterSpacing: '1.5px', marginTop: '3px' }}>
+            <div style={{ color: '#334155', fontSize: '9px', letterSpacing: '1.5px', marginTop: '2px' }}>
               {card.label}
             </div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-        {/* Próximo servicio */}
+      {/* Próximo servicio + ensayo */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+
+        {/* Servicio */}
         <div style={{
-          background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.15)',
-          borderRadius: '12px', padding: '18px',
-          animation: 'fadeInUp 0.5s ease 0.3s forwards', opacity: 0
+          background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.12)',
+          borderRadius: '14px', overflow: 'hidden',
+          animation: 'fadeInUp 0.5s ease 0.25s forwards', opacity: 0
         }}>
-          <p style={{ color: '#64748b', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px' }}>
-            PROXIMO SERVICIO
-          </p>
-          {nextService ? (
-            <div>
-              <p style={{ color: '#e2e8f0', fontSize: '15px', fontWeight: '700', margin: '0 0 4px' }}>{nextService.title}</p>
-              <p style={{ color: '#00d4ff', fontSize: '12px', margin: '0 0 2px' }}>
-                {dayjs(nextService.date).format('dddd DD [de] MMMM · HH:mm')}
-              </p>
-              {nextService.location && <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 12px' }}>{'📍 ' + nextService.location}</p>}
+          <div style={{
+            padding: '12px 16px', borderBottom: '1px solid rgba(0,212,255,0.08)',
+            background: 'rgba(0,212,255,0.04)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+          }}>
+            <p style={{ color: '#00d4ff', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: 0, fontWeight: '700' }}>
+              📅 PRÓXIMO SERVICIO
+            </p>
+            {nextService && (
               <button onClick={() => navigate('/services')} style={{
-                padding: '7px 16px', borderRadius: '7px', cursor: 'pointer',
-                background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
-                color: '#00d4ff', fontSize: '11px', fontWeight: '600'
-              }}>VER DETALLE →</button>
-            </div>
-          ) : (
-            <p style={{ color: '#475569', fontSize: '13px', margin: 0 }}>No hay servicios programados</p>
-          )}
+                background: 'none', border: 'none', color: '#475569',
+                cursor: 'pointer', fontSize: '11px'
+              }}>ver →</button>
+            )}
+          </div>
+          <div style={{ padding: '14px 16px' }}>
+            {nextService ? (
+              <>
+                <p style={{ color: '#e2e8f0', fontSize: '14px', fontWeight: '700', margin: '0 0 4px' }}>{nextService.title}</p>
+                <p style={{ color: '#00d4ff', fontSize: '11px', margin: '0 0 2px', textTransform: 'capitalize' }}>
+                  {dayjs(nextService.date).format('dddd DD MMM · HH:mm')}
+                </p>
+                {nextService.location && (
+                  <p style={{ color: '#475569', fontSize: '11px', margin: '0 0 10px' }}>📍 {nextService.location}</p>
+                )}
+                {serviceSongs.length > 0 && (
+                  <div>
+                    <p style={{ color: '#334155', fontSize: '9px', letterSpacing: '1px', margin: '0 0 6px' }}>CANCIONES</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      {serviceSongs.slice(0, 4).map((ss, i) => (
+                        <div key={ss.id} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '4px 8px', borderRadius: '6px', background: 'rgba(0,0,0,0.2)'
+                        }}>
+                          <span style={{ color: '#94a3b8', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>
+                            {ss.songs?.title}
+                          </span>
+                          <span style={{
+                            fontSize: '9px', padding: '1px 6px', borderRadius: '20px',
+                            background: 'rgba(0,212,255,0.1)', color: '#00d4ff', flexShrink: 0
+                          }}>{ss.songs?.preferred_key || ss.songs?.original_key}</span>
+                        </div>
+                      ))}
+                      {serviceSongs.length > 4 && (
+                        <p style={{ color: '#334155', fontSize: '10px', margin: '2px 0 0', textAlign: 'center' }}>
+                          +{serviceSongs.length - 4} más
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <p style={{ color: '#334155', fontSize: '12px', margin: 0 }}>Sin servicios próximos</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Próximo ensayo */}
+        {/* Ensayo */}
         <div style={{
-          background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(245,158,11,0.15)',
-          borderRadius: '12px', padding: '18px',
-          animation: 'fadeInUp 0.5s ease 0.4s forwards', opacity: 0
+          background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(245,158,11,0.12)',
+          borderRadius: '14px', overflow: 'hidden',
+          animation: 'fadeInUp 0.5s ease 0.35s forwards', opacity: 0
         }}>
-          <p style={{ color: '#64748b', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px' }}>
-            PROXIMO ENSAYO
-          </p>
-          {nextRehearsal ? (
-            <div>
-              <p style={{ color: '#e2e8f0', fontSize: '15px', fontWeight: '700', margin: '0 0 4px' }}>{nextRehearsal.title}</p>
-              <p style={{ color: '#f59e0b', fontSize: '12px', margin: '0 0 2px' }}>
-                {dayjs(nextRehearsal.date).format('dddd DD [de] MMMM · HH:mm')}
-              </p>
-              {nextRehearsal.location && <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 12px' }}>{'📍 ' + nextRehearsal.location}</p>}
+          <div style={{
+            padding: '12px 16px', borderBottom: '1px solid rgba(245,158,11,0.08)',
+            background: 'rgba(245,158,11,0.04)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+          }}>
+            <p style={{ color: '#f59e0b', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: 0, fontWeight: '700' }}>
+              🎸 PRÓXIMO ENSAYO
+            </p>
+            {nextRehearsal && (
               <button onClick={() => navigate('/rehearsals')} style={{
-                padding: '7px 16px', borderRadius: '7px', cursor: 'pointer',
-                background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
-                color: '#f59e0b', fontSize: '11px', fontWeight: '600'
-              }}>VER DETALLE →</button>
-            </div>
-          ) : (
-            <p style={{ color: '#475569', fontSize: '13px', margin: 0 }}>No hay ensayos programados</p>
-          )}
+                background: 'none', border: 'none', color: '#475569',
+                cursor: 'pointer', fontSize: '11px'
+              }}>ver →</button>
+            )}
+          </div>
+          <div style={{ padding: '14px 16px' }}>
+            {nextRehearsal ? (
+              <>
+                <p style={{ color: '#e2e8f0', fontSize: '14px', fontWeight: '700', margin: '0 0 4px' }}>{nextRehearsal.title}</p>
+                <p style={{ color: '#f59e0b', fontSize: '11px', margin: '0 0 2px', textTransform: 'capitalize' }}>
+                  {dayjs(nextRehearsal.date).format('dddd DD MMM · HH:mm')}
+                </p>
+                {nextRehearsal.location && (
+                  <p style={{ color: '#475569', fontSize: '11px', margin: '0 0 10px' }}>📍 {nextRehearsal.location}</p>
+                )}
+                {rehearsalSongs.length > 0 && (
+                  <div>
+                    <p style={{ color: '#334155', fontSize: '9px', letterSpacing: '1px', margin: '0 0 6px' }}>CANCIONES</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      {rehearsalSongs.slice(0, 4).map((ss, i) => (
+                        <div key={ss.id} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '4px 8px', borderRadius: '6px', background: 'rgba(0,0,0,0.2)'
+                        }}>
+                          <span style={{ color: '#94a3b8', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>
+                            {ss.songs?.title}
+                          </span>
+                          <span style={{
+                            fontSize: '9px', padding: '1px 6px', borderRadius: '20px',
+                            background: 'rgba(245,158,11,0.1)', color: '#f59e0b', flexShrink: 0
+                          }}>{ss.songs?.preferred_key || ss.songs?.original_key}</span>
+                        </div>
+                      ))}
+                      {rehearsalSongs.length > 4 && (
+                        <p style={{ color: '#334155', fontSize: '10px', margin: '2px 0 0', textAlign: 'center' }}>
+                          +{rehearsalSongs.length - 4} más
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <p style={{ color: '#334155', fontSize: '12px', margin: 0 }}>Sin ensayos próximos</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Canciones recientes */}
       {recentSongs.length > 0 && (
         <div style={{
-          background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(74,111,165,0.2)',
-          borderRadius: '12px', padding: '18px', marginTop: '16px',
-          animation: 'fadeInUp 0.5s ease 0.5s forwards', opacity: 0
+          background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(124,58,237,0.12)',
+          borderRadius: '14px', overflow: 'hidden',
+          animation: 'fadeInUp 0.5s ease 0.45s forwards', opacity: 0
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-            <p style={{ color: '#64748b', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: 0 }}>
-              CANCIONES RECIENTES
+          <div style={{
+            padding: '12px 16px', borderBottom: '1px solid rgba(124,58,237,0.08)',
+            background: 'rgba(124,58,237,0.04)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+          }}>
+            <p style={{ color: '#a78bfa', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: 0, fontWeight: '700' }}>
+              ♪ CANCIONES RECIENTES
             </p>
             <button onClick={() => navigate('/songs')} style={{
-              background: 'none', border: 'none', color: '#4a6fa5',
-              cursor: 'pointer', fontSize: '11px', fontWeight: '600'
-            }}>VER TODAS →</button>
+              background: 'none', border: 'none', color: '#475569',
+              cursor: 'pointer', fontSize: '11px'
+            }}>ver todas →</button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {recentSongs.map((song, i) => (
-              <div key={song.id} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '8px 12px', borderRadius: '8px',
-                background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(74,111,165,0.08)',
-                animation: 'slideIn 0.3s ease ' + (i * 0.05) + 's forwards', opacity: 0
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ color: '#334155', fontSize: '12px' }}>♪</span>
-                  <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '600' }}>{song.title}</span>
+          <div style={{ padding: '12px 16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '8px' }}>
+              {recentSongs.map((song, i) => (
+                <div key={song.id} onClick={() => navigate('/songs')} style={{
+                  padding: '10px 12px', borderRadius: '10px', cursor: 'pointer',
+                  background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(124,58,237,0.08)',
+                  transition: 'all 0.2s',
+                  animation: 'slideIn 0.3s ease ' + (i * 0.04) + 's forwards', opacity: 0
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(124,58,237,0.3)'; e.currentTarget.style.background = 'rgba(124,58,237,0.06)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(124,58,237,0.08)'; e.currentTarget.style.background = 'rgba(0,0,0,0.2)' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
+                      background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '9px', fontWeight: '700', color: '#a78bfa',
+                      fontFamily: 'Orbitron, sans-serif'
+                    }}>
+                      {song.preferred_key || song.original_key || '?'}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{
+                        margin: 0, fontSize: '12px', fontWeight: '600', color: '#e2e8f0',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                      }}>{song.title}</p>
+                      {song.bpm > 0 && <span style={{ fontSize: '10px', color: '#06ffa5' }}>♩{song.bpm}</span>}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {song.bpm > 0 && <span style={{ color: '#06ffa5', fontSize: '10px' }}>{'♩ ' + song.bpm}</span>}
-                  <span style={{
-                    fontSize: '10px', padding: '1px 7px', borderRadius: '20px',
-                    background: 'rgba(74,111,165,0.2)', border: '1px solid rgba(74,111,165,0.3)',
-                    color: '#7ab3e0'
-                  }}>{song.original_key || '?'}</span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )}
