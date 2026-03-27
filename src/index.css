@@ -13,12 +13,19 @@
   --border: rgba(0,212,255,0.15);
 }
 
+html {
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: 'Rajdhani', sans-serif;
   background: var(--bg-dark);
   color: var(--text);
   min-height: 100vh;
   overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body::before {
@@ -32,10 +39,12 @@ body::before {
   z-index: 0;
 }
 
+/* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
 ::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 2px; }
 
+/* ── Utilidades ── */
 .card {
   background: rgba(13,27,42,0.9);
   border: 1px solid rgba(0,212,255,0.15);
@@ -57,6 +66,8 @@ body::before {
   padding: 10px 20px;
   text-transform: uppercase;
   transition: all 0.3s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .btn-primary:hover {
@@ -83,6 +94,8 @@ body::before {
   outline: none;
   padding: 10px 14px;
   transition: all 0.3s ease;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .input-field:focus {
@@ -97,9 +110,7 @@ select.input-field option {
   color: #e2e8f0;
 }
 
-.glow-text {
-  text-shadow: 0 0 20px rgba(0,212,255,0.5);
-}
+.glow-text { text-shadow: 0 0 20px rgba(0,212,255,0.5); }
 
 .tag {
   display: inline-flex;
@@ -112,28 +123,28 @@ select.input-field option {
   text-transform: uppercase;
 }
 
+/* ── Animaciones ── */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes slideIn {
   from { opacity: 0; transform: translateX(-12px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-
 @keyframes glow {
   0%, 100% { box-shadow: 0 0 20px rgba(0,212,255,0.3); }
   50%       { box-shadow: 0 0 40px rgba(0,212,255,0.6); }
 }
-
 @keyframes pulse-border {
   0%, 100% { border-color: rgba(0,212,255,0.3); }
   50%       { border-color: rgba(0,212,255,0.8); }
 }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
-/* ===================== RESPONSIVE ===================== */
-
+/* ── Clases de visibilidad responsive ── */
 .nav-desktop     { display: flex !important; }
 .nav-desktop-btn { display: block !important; }
 .nav-mobile-btn  { display: none !important; }
@@ -142,6 +153,32 @@ select.input-field option {
 .services-detail-desktop   { display: block; }
 .rehearsals-detail-desktop { display: block; }
 
+/* ── Contenedor principal seguro ── */
+main, .page-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* ── Imágenes responsivas ── */
+img { max-width: 100%; height: auto; }
+
+/* ── Texto seguro ── */
+p, h1, h2, h3, h4, span {
+  max-width: 100%;
+  word-break: break-word;
+}
+
+/* ── Tablet ── */
+@media (max-width: 1024px) {
+  .songs-grid,
+  .services-grid,
+  .rehearsals-grid {
+    grid-template-columns: 1fr 1.2fr !important;
+  }
+}
+
+/* ── Móvil ── */
 @media (max-width: 768px) {
   .nav-desktop     { display: none !important; }
   .nav-desktop-btn { display: none !important; }
@@ -165,8 +202,13 @@ select.input-field option {
     padding: 8px 14px !important;
     font-size: 12px !important;
   }
+
+  .input-field {
+    font-size: 16px !important; /* evita zoom en iOS */
+  }
 }
 
 @media (max-width: 480px) {
   h1 { font-size: 16px !important; }
+  .btn-primary { padding: 7px 12px !important; }
 }

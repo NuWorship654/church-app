@@ -6,28 +6,31 @@ import Dashboard from './pages/Dashboard'
 import Songs from './pages/Songs'
 import Services from './pages/Services'
 import Rehearsals from './pages/Rehearsals'
-import Secuencias from './pages/Secuencias'
+import Stats from './pages/Stats'
 import Users from './pages/Users'
 import Profile from './pages/Profile'
-import Stats from './pages/Stats'
-import InstallPWA from './components/InstallPWA'
+import Secuencias from './pages/Secuencias'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
   if (loading) return (
     <div style={{
       minHeight: '100vh', background: '#020817',
-      display: 'flex', alignItems: 'center', justifyContent: 'center'
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', gap: '16px'
     }}>
       <div style={{
-        fontFamily: 'Orbitron, sans-serif', color: '#00d4ff',
-        fontSize: '14px', letterSpacing: '2px'
-      }}>
+        width: '36px', height: '36px', borderRadius: '50%',
+        border: '3px solid rgba(0,212,255,0.2)',
+        borderTop: '3px solid #00d4ff',
+        animation: 'spin 0.8s linear infinite'
+      }} />
+      <div style={{ fontFamily: 'Orbitron, sans-serif', color: '#00d4ff', fontSize: '12px', letterSpacing: '3px' }}>
         CARGANDO...
       </div>
     </div>
   )
-  return user ? children : <Navigate to="/login" />
+  return user ? children : <Navigate to="/login" replace />
 }
 
 export default function App() {
@@ -42,12 +45,12 @@ export default function App() {
             <Route path="services" element={<Services />} />
             <Route path="rehearsals" element={<Rehearsals />} />
             <Route path="secuencias" element={<Secuencias />} />
+            <Route path="stats" element={<Stats />} />
             <Route path="users" element={<Users />} />
             <Route path="profile" element={<Profile />} />
-            <Route path="stats" element={<Stats />} />
           </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        <InstallPWA />
       </BrowserRouter>
     </AuthProvider>
   )
