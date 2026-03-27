@@ -30,6 +30,8 @@ export default function SongViewer({
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   const [syncEnabled, setSyncEnabled] = useState(false)
   const [connectedUsers, setConnectedUsers] = useState(0)
+  const [savingPreferred, setSavingPreferred] = useState(false)
+  const [preferredSaved, setPreferredSaved] = useState(false)
   const metRef = useRef(null)
   const audioCtx = useRef(null)
   const channelRef = useRef(null)
@@ -74,9 +76,27 @@ export default function SongViewer({
     }
   }
 
+  // Cargar tono — primero preferido global, luego último usado personal
   useEffect(() => {
     if (!song?.id || !song?.original_key) return
-    getLastKey(song.id).then(savedKey => {
+
+    const loadKey = async () => {
+      // Si tiene tono preferido definido por líder → usarlo
+      if (song.preferred_semitones !== undefined && song.preferred_semitones !== null && song.preferred_semitones !== 0) {
+        setSemitones(song.preferred_semitones)
+        return
+      }
+      if (song.preferred_key && song.preferred_key !== song.original_key) {
+        const idx = KEYS.indexOf(song.preferred_key)
+        const origIdx = KEYS.indexOf(song.original_key)
+        if (idx !== -1 && origIdx !== -1) {
+          const diff = ((idx - origIdx) + 12) % 12
+          setSemitones(diff > 6 ? diff - 12 : diff)
+          return
+        }
+      }
+      // Si no hay preferido → cargar último tono personal
+      const savedKey = await getLastKey(song.id)
       if (savedKey && savedKey !== song.original_key) {
         const idx = KEYS.indexOf(savedKey)
         const origIdx = KEYS.indexOf(song.original_key)
@@ -87,7 +107,9 @@ export default function SongViewer({
       } else {
         setSemitones(0)
       }
-    })
+    }
+
+    loadKey()
   }, [song?.id])
 
   useEffect(() => {
@@ -107,6 +129,7 @@ export default function SongViewer({
     setBpmInput(song.bpm || 0)
     setActiveTab('chords')
     setFullscreen(false)
+    setPreferredSaved(false)
   }, [song?.id, user?.id])
 
   useEffect(() => {
@@ -154,8 +177,35 @@ export default function SongViewer({
     setTimeout(() => setNoteSaved(false), 2000)
   }
 
+  // Guardar tono preferido en la base de datos
+  const savePreferredKey = async () => {
+    if (!isLeader || !song?.id) return
+    setSavingPreferred(true)
+    const newKey = KEYS[(KEYS.indexOf(song.original_key) + semitones + 120) % 12]
+    await supabase.from('songs').update({
+      preferred_key: newKey,
+      preferred_semitones: semitones
+    }).eq('id', song.id)
+    setSavingPreferred(false)
+    setPreferredSaved(true)
+    setTimeout(() => setPreferredSaved(false), 3000)
+  }
+
+  const clearPreferredKey = async () => {
+    if (!isLeader || !song?.id) return
+    await supabase.from('songs').update({
+      preferred_key: null,
+      preferred_semitones: 0
+    }).eq('id', song.id)
+    setSemitones(0)
+    setPreferredSaved(false)
+  }
+
   const currentKey = song?.original_key
     ? KEYS[(KEYS.indexOf(song.original_key) + semitones + 120) % 12] : '?'
+
+  const isPreferredActive = song?.preferred_semitones !== 0 && song?.preferred_semitones !== null && song?.preferred_semitones !== undefined
+  const isCurrentPreferred = song?.preferred_key === currentKey && semitones === (song?.preferred_semitones || 0)
 
   const chordsText = transposeText(song?.chords, semitones) || ''
   const lyricsText = song?.lyrics || ''
@@ -164,6 +214,65 @@ export default function SongViewer({
     onSwipeLeft: hasNext ? onNext : null,
     onSwipeRight: hasPrev ? onPrev : null
   })
+
+  // Botón de tono preferido
+  const PreferredKeyBtn = () => {
+    if (!isLeader) {
+      // Usuarios normales solo ven si hay tono preferido
+      if (!isPreferredActive) return null
+      return (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '5px',
+          padding: '3px 10px', borderRadius: '20px',
+          background: 'rgba(6,255,165,0.1)', border: '1px solid rgba(6,255,165,0.3)',
+          color: '#06ffa5', fontSize: '10px', fontWeight: '600'
+        }}>
+          ✓ Tono preferido: {song.preferred_key}
+        </div>
+      )
+    }
+
+    // Admins y líderes pueden guardar/limpiar
+    if (semitones === 0 && !isPreferredActive) return null
+
+    return (
+      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+        {isPreferredActive && (
+          <div style={{
+            padding: '3px 8px', borderRadius: '20px',
+            background: 'rgba(6,255,165,0.08)', border: '1px solid rgba(6,255,165,0.2)',
+            color: '#06ffa5', fontSize: '10px'
+          }}>
+            Preferido: {song.preferred_key}
+          </div>
+        )}
+        {semitones !== 0 && (
+          <button onClick={savePreferredKey} disabled={savingPreferred || isCurrentPreferred} style={{
+            padding: '3px 10px', borderRadius: '20px', cursor: 'pointer',
+            background: preferredSaved
+              ? 'rgba(6,255,165,0.2)'
+              : isCurrentPreferred
+                ? 'rgba(6,255,165,0.1)'
+                : 'rgba(6,255,165,0.08)',
+            border: '1px solid ' + (preferredSaved || isCurrentPreferred
+              ? 'rgba(6,255,165,0.5)'
+              : 'rgba(6,255,165,0.2)'),
+            color: '#06ffa5', fontSize: '10px', fontWeight: '600',
+            transition: 'all 0.2s'
+          }}>
+            {savingPreferred ? '...' : preferredSaved ? '✓ Guardado' : isCurrentPreferred ? '✓ Es el preferido' : '⭐ Definir como preferido'}
+          </button>
+        )}
+        {isPreferredActive && !isCurrentPreferred && (
+          <button onClick={clearPreferredKey} style={{
+            padding: '3px 8px', borderRadius: '20px', cursor: 'pointer',
+            background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+            color: '#f87171', fontSize: '10px', transition: 'all 0.2s'
+          }}>✕</button>
+        )}
+      </div>
+    )
+  }
 
   const controlsProps = {
     song, semitones, setSemitones: setAndBroadcastSemitones,
@@ -192,7 +301,7 @@ export default function SongViewer({
           background: 'rgba(2,8,23,0.98)', backdropFilter: 'blur(10px)',
           flexShrink: 0, gap: '6px', flexWrap: 'wrap'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flexWrap: 'wrap' }}>
             <button onClick={toggleFav} style={{
               background: 'none', border: 'none', fontSize: '16px',
               cursor: 'pointer', color: isFav ? '#f59e0b' : '#475569', flexShrink: 0
@@ -215,6 +324,7 @@ export default function SongViewer({
                 {bpm > 0 && <span style={{ marginLeft: '6px', color: '#06ffa5' }}>♩{bpm}</span>}
               </span>
             </div>
+            <PreferredKeyBtn />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
             <SongControls {...controlsProps} compact={true} />
@@ -247,10 +357,8 @@ export default function SongViewer({
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {activeTab === 'chords' && (
             <LyricsView
-              chordsText={chordsText}
-              lyricsText={lyricsText}
-              fontSize={fontSize}
-              autoScroll={true}
+              chordsText={chordsText} lyricsText={lyricsText}
+              fontSize={fontSize} autoScroll={true}
               padding={isMobile ? '16px 14px' : '24px 40px'}
             />
           )}
@@ -344,16 +452,19 @@ export default function SongViewer({
               }}>⛶ VER</button>
             </div>
           </div>
+
+          {/* Badge tono preferido */}
+          <div style={{ marginBottom: '10px' }}>
+            <PreferredKeyBtn />
+          </div>
+
           <SongControls {...controlsProps} compact={false} />
         </div>
 
         <div style={{ paddingBottom: '60px' }}>
           <LyricsView
-            chordsText={chordsText}
-            lyricsText={lyricsText}
-            fontSize={fontSize}
-            autoScroll={true}
-            padding="0 4px"
+            chordsText={chordsText} lyricsText={lyricsText}
+            fontSize={fontSize} autoScroll={true} padding="0 4px"
           />
         </div>
 
@@ -377,10 +488,13 @@ export default function SongViewer({
           <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '16px', color: '#e2e8f0', margin: '0 0 4px' }}>
             {song.title}
           </h2>
-          <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
-            Tono: <span style={{ color: '#a78bfa' }}>{song.original_key || 'N/A'}</span>
-            {bpm > 0 && <span style={{ marginLeft: '12px', color: '#06ffa5' }}>♩ {bpm} BPM</span>}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+              Tono: <span style={{ color: '#a78bfa' }}>{song.original_key || 'N/A'}</span>
+              {bpm > 0 && <span style={{ marginLeft: '12px', color: '#06ffa5' }}>♩ {bpm} BPM</span>}
+            </p>
+            <PreferredKeyBtn />
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button onClick={toggleFav} style={{
@@ -415,11 +529,8 @@ export default function SongViewer({
       </div>
 
       <LyricsView
-        chordsText={chordsText}
-        lyricsText={lyricsText}
-        fontSize={fontSize}
-        autoScroll={false}
-        padding="0"
+        chordsText={chordsText} lyricsText={lyricsText}
+        fontSize={fontSize} autoScroll={false} padding="0"
       />
     </div>
   )
