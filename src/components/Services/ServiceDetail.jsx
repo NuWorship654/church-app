@@ -1,384 +1,569 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { useAuth } from '../context/AuthContext'
-import ServiceForm from '../components/Services/ServiceForm'
-import ServiceDetail from '../components/Services/ServiceDetail'
+import { useAuth } from '../../context/AuthContext'
+import SongViewer from '../Songs/SongViewer'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import jsPDF from 'jspdf'
 dayjs.locale('es')
 
-export default function Services() {
-  const [services, setServices] = useState([])
-  const [songCounts, setSongCounts] = useState({})
-  const [selected, setSelected] = useState(null)
-  const [showForm, setShowForm] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [showDetail, setShowDetail] = useState(false)
-  const [search, setSearch] = useState('')
-  const [view, setView] = useState('list')
-  const [calendarMonth, setCalendarMonth] = useState(dayjs())
-  const { canEdit, isPastor } = useAuth()
-
-  const fetchServices = async () => {
-    setLoading(true)
-    const { data } = await supabase.from('services').select('*').order('date', { ascending: true })
-    setServices(data || [])
-
-    // Contar canciones por servicio
-    if (data?.length) {
-      const { data: counts } = await supabase
-        .from('service_songs')
-        .select('service_id')
-        .in('service_id', data.map(s => s.id))
-      const countMap = {}
-      counts?.forEach(c => { countMap[c.service_id] = (countMap[c.service_id] || 0) + 1 })
-      setSongCounts(countMap)
-    }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchServices() }, [])
-
-  const handleDelete = async (id) => {
-    if (!confirm('Eliminar este servicio?')) return
-    await supabase.from('services').delete().eq('id', id)
-    setServices(services.filter(s => s.id !== id))
-    if (selected?.id === id) { setSelected(null); setShowDetail(false) }
-  }
-
-  const filtered = services.filter(s =>
-    s.title.toLowerCase().includes(search.toLowerCase()) ||
-    s.location?.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const upcoming = filtered.filter(s => dayjs(s.date).isAfter(dayjs().subtract(1, 'day')))
-  const past = filtered.filter(s => dayjs(s.date).isBefore(dayjs().subtract(1, 'day')))
-
-  // Calendario
-  const firstDay = calendarMonth.startOf('month').day()
-  const daysInMonth = calendarMonth.daysInMonth()
-  const calDays = []
-  for (let i = 0; i < firstDay; i++) calDays.push(null)
-  for (let i = 1; i <= daysInMonth; i++) calDays.push(i)
-
-  const getServicesForDay = (day) => {
-    if (!day) return []
-    return services.filter(s =>
-      dayjs(s.date).format('YYYY-MM-DD') === calendarMonth.date(day).format('YYYY-MM-DD')
-    )
-  }
-
+function SortableTab({ ss, index, isActive, onClick, canEdit, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: ss.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, flexShrink: 0 }
   return (
-    <div style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
-
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '8px', height: '40px', borderRadius: '4px', background: 'linear-gradient(180deg, #06ffa5, #00d4ff)' }} />
-          <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '22px', fontWeight: '700', color: '#e2e8f0', margin: 0 }}>
-            SERVICIOS
-          </h1>
-          <span style={{
-            fontSize: '11px', padding: '2px 8px', borderRadius: '20px',
-            background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff'
-          }}>{services.length}</span>
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <button onClick={onClick} style={{
+        padding: '8px 14px', borderRadius: '8px', cursor: 'pointer',
+        background: isActive ? 'rgba(0,212,255,0.15)' : 'rgba(0,0,0,0.3)',
+        border: '1px solid ' + (isActive ? 'rgba(0,212,255,0.5)' : 'rgba(0,212,255,0.1)'),
+        transition: 'all 0.2s', boxShadow: isActive ? '0 0 12px rgba(0,212,255,0.15)' : 'none',
+        display: 'flex', alignItems: 'center', gap: '6px'
+      }}>
+        <span {...listeners} style={{ cursor: 'grab', color: '#475569', fontSize: '12px', padding: '0 2px' }}>⠿</span>
+        <span style={{
+          width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
+          background: isActive ? 'rgba(0,212,255,0.3)' : 'rgba(255,255,255,0.05)',
+          border: '1px solid ' + (isActive ? 'rgba(0,212,255,0.6)' : 'rgba(255,255,255,0.1)'),
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '9px', fontWeight: '700', color: isActive ? '#00d4ff' : '#64748b'
+        }}>{index + 1}</span>
+        <div style={{ textAlign: 'left' }}>
+          <p style={{
+            margin: 0, fontSize: '12px', fontWeight: '600',
+            color: isActive ? '#e2e8f0' : '#94a3b8',
+            whiteSpace: 'nowrap', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis'
+          }}>{ss.songs?.title}</p>
+          <p style={{ margin: 0, fontSize: '10px', color: isActive ? '#00d4ff' : '#475569' }}>
+            {ss.songs?.preferred_key || ss.songs?.original_key || '?'}
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <div style={{
-            display: 'flex', background: 'rgba(0,0,0,0.3)',
-            borderRadius: '8px', border: '1px solid rgba(0,212,255,0.1)', overflow: 'hidden'
-          }}>
-            <button onClick={() => setView('list')} style={{
-              padding: '6px 12px', border: 'none', cursor: 'pointer',
-              background: view === 'list' ? 'rgba(0,212,255,0.15)' : 'transparent',
-              color: view === 'list' ? '#00d4ff' : '#475569',
-              fontSize: '11px', fontWeight: '600'
-            }}>☰ LISTA</button>
-            <button onClick={() => setView('calendar')} style={{
-              padding: '6px 12px', border: 'none', cursor: 'pointer',
-              background: view === 'calendar' ? 'rgba(0,212,255,0.15)' : 'transparent',
-              color: view === 'calendar' ? '#00d4ff' : '#475569',
-              fontSize: '11px', fontWeight: '600'
-            }}>📅 MES</button>
-          </div>
-          {canEdit && (
-            <button className="btn-primary" onClick={() => { setEditing(null); setShowForm(true) }}>
-              + NUEVO
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Buscador — solo en lista */}
-      {view === 'list' && (
-        <div style={{ marginBottom: '16px' }}>
-          <input type="text" placeholder="Buscar servicio o lugar..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="input-field" style={{ maxWidth: '360px' }} />
-        </div>
-      )}
-
-      {/* Vista Calendario */}
-      {view === 'calendar' && (
-        <div style={{
-          background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.12)',
-          borderRadius: '16px', overflow: 'hidden', marginBottom: '16px'
-        }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '16px 20px', borderBottom: '1px solid rgba(0,212,255,0.08)',
-            background: 'rgba(0,212,255,0.04)'
-          }}>
-            <button onClick={() => setCalendarMonth(m => m.subtract(1, 'month'))} style={{
-              background: 'none', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff',
-              borderRadius: '8px', padding: '4px 14px', cursor: 'pointer', fontSize: '16px'
-            }}>‹</button>
-            <p style={{
-              fontFamily: 'Orbitron, sans-serif', fontSize: '13px', color: '#e2e8f0',
-              margin: 0, textTransform: 'uppercase', letterSpacing: '2px'
-            }}>
-              {calendarMonth.format('MMMM YYYY')}
-            </p>
-            <button onClick={() => setCalendarMonth(m => m.add(1, 'month'))} style={{
-              background: 'none', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff',
-              borderRadius: '8px', padding: '4px 14px', cursor: 'pointer', fontSize: '16px'
-            }}>›</button>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', padding: '10px 12px 0' }}>
-            {['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].map(d => (
-              <div key={d} style={{ textAlign: 'center', color: '#334155', fontSize: '10px', padding: '4px', letterSpacing: '1px' }}>
-                {d}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px', padding: '4px 12px 16px' }}>
-            {calDays.map((day, i) => {
-              const dayServices = getServicesForDay(day)
-              const isToday = day && calendarMonth.date(day).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD')
-              const hasService = dayServices.length > 0
-              return (
-                <div key={i} onClick={() => {
-                  if (dayServices[0]) { setSelected(dayServices[0]); setShowDetail(true); setView('list') }
-                }} style={{
-                  minHeight: '52px', borderRadius: '8px', padding: '4px 5px',
-                  background: isToday ? 'rgba(0,212,255,0.1)' : hasService ? 'rgba(6,255,165,0.06)' : 'transparent',
-                  border: isToday ? '1px solid rgba(0,212,255,0.4)' : hasService ? '1px solid rgba(6,255,165,0.2)' : '1px solid transparent',
-                  cursor: hasService ? 'pointer' : 'default', transition: 'all 0.15s'
-                }}
-                onMouseEnter={e => { if (hasService) e.currentTarget.style.borderColor = 'rgba(6,255,165,0.5)' }}
-                onMouseLeave={e => { if (hasService) e.currentTarget.style.borderColor = isToday ? 'rgba(0,212,255,0.4)' : 'rgba(6,255,165,0.2)' }}
-                >
-                  {day && (
-                    <>
-                      <p style={{
-                        margin: '0 0 2px', fontSize: '11px', textAlign: 'center',
-                        color: isToday ? '#00d4ff' : '#64748b',
-                        fontWeight: isToday ? '700' : '400'
-                      }}>{day}</p>
-                      {dayServices.map(s => (
-                        <div key={s.id} style={{
-                          padding: '1px 4px', borderRadius: '3px', marginBottom: '1px',
-                          background: 'rgba(6,255,165,0.18)',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                        }}>
-                          <span style={{ fontSize: '9px', color: '#06ffa5' }}>{s.title}</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Vista Lista */}
-      {view === 'list' && (
-        showDetail && selected ? (
-          <div>
-            <button onClick={() => setShowDetail(false)} style={{
-              display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px',
-              background: 'none', border: 'none', color: '#00d4ff', cursor: 'pointer',
-              fontSize: '13px', fontWeight: '600'
-            }}>← VOLVER A SERVICIOS</button>
-            <ServiceDetail
-              service={selected} canEdit={canEdit}
-              isPastor={isPastor} onRefresh={fetchServices}
-            />
-          </div>
-        ) : (
-          <div className="services-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '20px' }}>
-            <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
-              {loading ? (
-                <div style={{ color: '#64748b', textAlign: 'center', padding: '40px' }}>Cargando...</div>
-              ) : filtered.length === 0 ? (
-                <div style={{
-                  textAlign: 'center', padding: '40px', color: '#64748b',
-                  background: 'rgba(13,27,42,0.5)', border: '1px dashed rgba(0,212,255,0.15)',
-                  borderRadius: '12px'
-                }}>
-                  <div style={{ fontSize: '36px', marginBottom: '10px', opacity: 0.3 }}>📅</div>
-                  <p style={{ margin: 0 }}>{search ? 'Sin resultados' : 'No hay servicios aún'}</p>
-                </div>
-              ) : (
-                <>
-                  {upcoming.length > 0 && (
-                    <>
-                      <p style={{ color: '#06ffa5', fontSize: '11px', letterSpacing: '2px', margin: '0 0 10px', textTransform: 'uppercase' }}>
-                        PRÓXIMOS — {upcoming.length}
-                      </p>
-                      {upcoming.map((service, i) => (
-                        <ServiceCard key={service.id} service={service} selected={selected}
-                          songCount={songCounts[service.id] || 0}
-                          onSelect={s => { setSelected(s); setShowDetail(true) }}
-                          canEdit={canEdit}
-                          onEdit={() => { setEditing(service); setShowForm(true) }}
-                          onDelete={() => handleDelete(service.id)} index={i} />
-                      ))}
-                    </>
-                  )}
-                  {past.length > 0 && (
-                    <>
-                      <p style={{ color: '#64748b', fontSize: '11px', letterSpacing: '2px', margin: '16px 0 10px', textTransform: 'uppercase' }}>
-                        ANTERIORES — {past.length}
-                      </p>
-                      {past.map((service, i) => (
-                        <ServiceCard key={service.id} service={service} selected={selected}
-                          songCount={songCounts[service.id] || 0}
-                          onSelect={s => { setSelected(s); setShowDetail(true) }}
-                          canEdit={canEdit}
-                          onEdit={() => { setEditing(service); setShowForm(true) }}
-                          onDelete={() => handleDelete(service.id)} index={i} past />
-                      ))}
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="services-detail-desktop">
-              {selected ? (
-                <ServiceDetail
-                  service={selected} canEdit={canEdit}
-                  isPastor={isPastor} onRefresh={fetchServices}
-                />
-              ) : (
-                <div style={{
-                  background: 'rgba(13,27,42,0.5)', border: '1px dashed rgba(0,212,255,0.2)',
-                  borderRadius: '12px', padding: '60px 20px', textAlign: 'center', color: '#64748b'
-                }}>
-                  <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.3 }}>📅</div>
-                  <p style={{ margin: '0 0 6px', fontSize: '14px' }}>Selecciona un servicio para ver los detalles</p>
-                  <p style={{ margin: 0, fontSize: '11px', color: '#334155' }}>
-                    {upcoming.length} próximo{upcoming.length !== 1 ? 's' : ''} · {past.length} anterior{past.length !== 1 ? 'es' : ''}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        )
-      )}
-
-      {showForm && (
-        <ServiceForm service={editing} onClose={() => setShowForm(false)}
-          onSaved={() => { fetchServices(); setShowForm(false) }} />
-      )}
+        {canEdit && (
+          <span onClick={e => { e.stopPropagation(); onRemove() }} style={{
+            color: '#475569', cursor: 'pointer', fontSize: '12px', padding: '2px 4px', transition: 'color 0.2s'
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+          onMouseLeave={e => e.currentTarget.style.color = '#475569'}>x</span>
+        )}
+      </button>
     </div>
   )
 }
 
-function ServiceCard({ service, selected, onSelect, canEdit, onEdit, onDelete, index, past, songCount }) {
-  const isSelected = selected?.id === service.id
+export default function ServiceDetail({ service, canEdit, isPastor, onRefresh }) {
+  const { user } = useAuth()
+  const [songs, setSongs] = useState([])
+  const [allSongs, setAllSongs] = useState([])
+  const [activeSongIndex, setActiveSongIndex] = useState(0)
+  const [view, setView] = useState('songs')
+  const [showAddSong, setShowAddSong] = useState(false)
+  const [search, setSearch] = useState('')
+  const [chatMessages, setChatMessages] = useState([])
+  const [newMessage, setNewMessage] = useState('')
+  const [comments, setComments] = useState([])
+  const [newComment, setNewComment] = useState('')
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  const [sendingMsg, setSendingMsg] = useState(false)
+  const [sendingComment, setSendingComment] = useState(false)
+  const chatEndRef = useRef(null)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  useEffect(() => {
+    fetchServiceSongs()
+    fetchAllSongs()
+    fetchChat()
+    fetchComments()
+    setActiveSongIndex(0)
+    setShowAddSong(false)
+    setView('songs')
+  }, [service.id])
+
+  // Auto-scroll chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
+
+  // Realtime chat
+  useEffect(() => {
+    const channel = supabase
+      .channel(`service-chat-${service.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'service_chat',
+        filter: `service_id=eq.${service.id}`
+      }, () => fetchChat())
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [service.id])
+
+  const fetchServiceSongs = async () => {
+    const { data } = await supabase
+      .from('service_songs').select('*, songs(*)')
+      .eq('service_id', service.id).order('order_index')
+    setSongs(data || [])
+  }
+
+  const fetchAllSongs = async () => {
+    const { data } = await supabase.from('songs').select('*').order('title')
+    setAllSongs(data || [])
+  }
+
+  const fetchChat = async () => {
+    const { data } = await supabase
+      .from('service_chat').select('*, profiles(full_name)')
+      .eq('service_id', service.id).order('created_at')
+    setChatMessages(data || [])
+  }
+
+  const fetchComments = async () => {
+    const { data } = await supabase
+      .from('comments').select('*, profiles(full_name)')
+      .eq('service_id', service.id).order('created_at')
+    setComments(data || [])
+  }
+
+  const addSong = async (songId) => {
+    await supabase.from('service_songs').insert({
+      service_id: service.id, song_id: songId, order_index: songs.length
+    })
+    setShowAddSong(false)
+    setSearch('')
+    const { data } = await supabase
+      .from('service_songs').select('*, songs(*)')
+      .eq('service_id', service.id).order('order_index')
+    setSongs(data || [])
+    setActiveSongIndex((data || []).length - 1)
+  }
+
+  const removeSong = async (id, index) => {
+    await supabase.from('service_songs').delete().eq('id', id)
+    const { data } = await supabase
+      .from('service_songs').select('*, songs(*)')
+      .eq('service_id', service.id).order('order_index')
+    setSongs(data || [])
+    setActiveSongIndex(prev => {
+      if ((data || []).length === 0) return 0
+      if (prev >= index && prev > 0) return prev - 1
+      return prev
+    })
+  }
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = songs.findIndex(s => s.id === active.id)
+    const newIndex = songs.findIndex(s => s.id === over.id)
+    const newSongs = arrayMove(songs, oldIndex, newIndex)
+    setSongs(newSongs)
+    if (oldIndex === activeSongIndex) setActiveSongIndex(newIndex)
+    await Promise.all(
+      newSongs.map((s, i) => supabase.from('service_songs').update({ order_index: i }).eq('id', s.id))
+    )
+  }
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || sendingMsg) return
+    setSendingMsg(true)
+    await supabase.from('service_chat').insert({
+      service_id: service.id, user_id: user.id, message: newMessage.trim()
+    })
+    setNewMessage('')
+    setSendingMsg(false)
+    fetchChat()
+  }
+
+  const addComment = async () => {
+    if (!newComment.trim() || sendingComment) return
+    setSendingComment(true)
+    await supabase.from('comments').insert({
+      service_id: service.id, user_id: user.id, content: newComment.trim()
+    })
+    setNewComment('')
+    setSendingComment(false)
+    fetchComments()
+  }
+
+  const exportPDF = () => {
+    const doc = new jsPDF()
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(20)
+    doc.text(service.title, 20, 24)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    doc.setTextColor(100)
+    doc.text(dayjs(service.date).format('dddd DD [de] MMMM YYYY · HH:mm'), 20, 34)
+    if (service.location) doc.text('📍 ' + service.location, 20, 42)
+    doc.setDrawColor(200)
+    doc.line(20, 48, 190, 48)
+    doc.setTextColor(0)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    doc.text('Lista de Canciones:', 20, 58)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    songs.forEach((ss, i) => {
+      const key = ss.songs?.preferred_key || ss.songs?.original_key || '?'
+      doc.text(`${i + 1}. ${ss.songs?.title || ''} — ${key}`, 20, 68 + i * 10)
+    })
+    doc.save(service.title + '.pdf')
+  }
+
+  const shareWhatsApp = () => {
+    let text = `🎵 *${service.title}*\n`
+    text += `📅 ${dayjs(service.date).format('dddd DD MMM · HH:mm')}\n`
+    if (service.location) text += `📍 ${service.location}\n`
+    text += `\n*CANCIONES:*\n`
+    songs.forEach((ss, i) => {
+      const key = ss.songs?.preferred_key || ss.songs?.original_key || '?'
+      text += `${i + 1}. ${ss.songs?.title || ''} — *${key}*\n`
+    })
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+  }
+
+  const copyList = () => {
+    let text = `${service.title}\n`
+    text += `${dayjs(service.date).format('DD/MM/YYYY HH:mm')}\n`
+    if (service.location) text += `${service.location}\n`
+    text += `\nCANCIONES:\n`
+    songs.forEach((ss, i) => {
+      const key = ss.songs?.preferred_key || ss.songs?.original_key || '?'
+      text += `${i + 1}. ${ss.songs?.title || ''} - ${key}\n`
+    })
+    navigator.clipboard.writeText(text)
+  }
+
+  const availableSongs = allSongs.filter(s =>
+    !songs.find(ss => ss.song_id === s.id) &&
+    s.title.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const activeSong = songs[activeSongIndex]?.songs || null
+  const hasPrev = activeSongIndex > 0
+  const hasNext = activeSongIndex < songs.length - 1
+  const goNext = () => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))
+  const goPrev = () => setActiveSongIndex(i => Math.max(0, i - 1))
+
   const isToday = dayjs(service.date).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD')
-  const daysLeft = dayjs(service.date).diff(dayjs(), 'day')
-  const isSoon = !past && daysLeft >= 0 && daysLeft <= 3
+  const isPast = dayjs(service.date).isBefore(dayjs())
+
+  const TabBtn = ({ id, label }) => (
+    <button onClick={() => setView(id)} style={{
+      padding: '7px 14px', borderRadius: '7px', cursor: 'pointer',
+      background: view === id ? 'rgba(0,212,255,0.1)' : 'transparent',
+      border: '1px solid ' + (view === id ? 'rgba(0,212,255,0.3)' : 'transparent'),
+      color: view === id ? '#00d4ff' : '#64748b',
+      fontSize: '11px', fontWeight: '600', letterSpacing: '1px', transition: 'all 0.2s'
+    }}>{label}</button>
+  )
 
   return (
-    <div onClick={() => onSelect(service)} style={{
-      background: isSelected ? 'rgba(0,212,255,0.08)' : past ? 'rgba(13,27,42,0.4)' : 'rgba(13,27,42,0.8)',
-      border: '1px solid ' + (isSelected ? 'rgba(0,212,255,0.5)' : isToday ? 'rgba(6,255,165,0.35)' : 'rgba(0,212,255,0.1)'),
-      borderRadius: '12px', padding: '14px 16px', cursor: 'pointer',
-      transition: 'all 0.2s ease', marginBottom: '8px', opacity: past ? 0.65 : 1,
-      animation: 'slideIn 0.3s ease ' + (index * 0.05) + 's forwards',
-      position: 'relative', overflow: 'hidden'
-    }}
-    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.35)' }}
-    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.borderColor = isToday ? 'rgba(6,255,165,0.35)' : 'rgba(0,212,255,0.1)' }}
-    >
-      {/* Indicador lateral */}
-      {!past && (
-        <div style={{
-          position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px',
-          background: isToday ? '#06ffa5' : isSoon ? '#f59e0b' : 'rgba(0,212,255,0.4)',
-          borderRadius: '3px 0 0 3px'
-        }} />
-      )}
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: past ? 0 : '8px' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Título + badges */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px', flexWrap: 'wrap' }}>
-            <p style={{
-              margin: 0, fontWeight: '700', fontSize: '14px',
-              color: past ? '#94a3b8' : isSelected ? '#ffffff' : '#e2e8f0',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '160px'
-            }}>{service.title}</p>
-            {isToday && (
-              <span style={{
-                fontSize: '9px', padding: '1px 7px', borderRadius: '20px',
-                background: 'rgba(6,255,165,0.2)', border: '1px solid rgba(6,255,165,0.4)',
-                color: '#06ffa5', fontWeight: '700', letterSpacing: '1px', flexShrink: 0
-              }}>HOY</span>
+    <div style={{
+      background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
+      borderRadius: '14px', overflow: 'hidden', animation: 'fadeInUp 0.3s ease forwards'
+    }}>
+      {/* Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(0,212,255,0.08), rgba(124,58,237,0.06))',
+        borderBottom: '1px solid rgba(0,212,255,0.1)',
+        padding: '16px 20px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+              <h2 style={{
+                fontFamily: 'Orbitron, sans-serif', fontSize: '15px',
+                color: '#e2e8f0', margin: 0
+              }}>{service.title}</h2>
+              {isToday && (
+                <span style={{
+                  fontSize: '9px', padding: '1px 7px', borderRadius: '20px',
+                  background: 'rgba(6,255,165,0.2)', border: '1px solid rgba(6,255,165,0.4)',
+                  color: '#06ffa5', fontWeight: '700'
+                }}>HOY</span>
+              )}
+              {isPast && !isToday && (
+                <span style={{
+                  fontSize: '9px', padding: '1px 7px', borderRadius: '20px',
+                  background: 'rgba(100,116,139,0.15)', border: '1px solid rgba(100,116,139,0.2)',
+                  color: '#64748b', fontWeight: '700'
+                }}>PASADO</span>
+              )}
+            </div>
+            <p style={{ color: '#00d4ff', fontSize: '12px', margin: '0 0 2px', textTransform: 'capitalize' }}>
+              📅 {dayjs(service.date).format('dddd DD [de] MMMM · HH:mm')}
+            </p>
+            {service.location && (
+              <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 4px' }}>📍 {service.location}</p>
             )}
-            {isSoon && !isToday && (
-              <span style={{
-                fontSize: '9px', padding: '1px 7px', borderRadius: '20px',
-                background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)',
-                color: '#f59e0b', fontWeight: '700', letterSpacing: '1px', flexShrink: 0
-              }}>{daysLeft === 0 ? 'HOY' : daysLeft + 'd'}</span>
+            {service.description && (
+              <p style={{
+                color: '#94a3b8', fontSize: '12px', margin: '8px 0 0',
+                padding: '8px 12px', borderRadius: '8px',
+                background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.04)'
+              }}>{service.description}</p>
             )}
           </div>
 
-          {/* Fecha */}
-          <p style={{ margin: '0 0 3px', color: isSelected ? '#00d4ff' : '#4a8fa8', fontSize: '11px', textTransform: 'capitalize' }}>
-            📅 {dayjs(service.date).format('dddd DD MMM · HH:mm')}
-          </p>
-
-          {/* Lugar + canciones */}
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {service.location && (
-              <span style={{ color: '#475569', fontSize: '11px' }}>📍 {service.location}</span>
-            )}
-            {songCount > 0 && (
-              <span style={{
-                fontSize: '10px', padding: '1px 7px', borderRadius: '20px',
-                background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)',
-                color: '#a78bfa'
-              }}>♪ {songCount} canción{songCount !== 1 ? 'es' : ''}</span>
-            )}
+          {/* Acciones */}
+          <div style={{ display: 'flex', gap: '6px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button onClick={shareWhatsApp} style={{
+              padding: '5px 10px', borderRadius: '7px', cursor: 'pointer',
+              background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.25)',
+              color: '#25d366', fontSize: '11px', fontWeight: '600'
+            }}>WhatsApp</button>
+            <button onClick={copyList} style={{
+              padding: '5px 10px', borderRadius: '7px', cursor: 'pointer',
+              background: 'rgba(6,255,165,0.08)', border: '1px solid rgba(6,255,165,0.25)',
+              color: '#06ffa5', fontSize: '11px', fontWeight: '600'
+            }}>COPIAR</button>
+            <button onClick={exportPDF} style={{
+              padding: '5px 10px', borderRadius: '7px', cursor: 'pointer',
+              background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)',
+              color: '#a78bfa', fontSize: '11px', fontWeight: '600'
+            }}>PDF</button>
           </div>
         </div>
+      </div>
 
-        {canEdit && (
-          <div style={{ display: 'flex', gap: '3px', flexShrink: 0, marginLeft: '8px' }} onClick={e => e.stopPropagation()}>
-            <button onClick={onEdit} style={{
-              background: 'none', border: 'none', color: '#00d4ff', cursor: 'pointer',
-              fontSize: '13px', padding: '5px 8px', borderRadius: '6px', transition: 'background 0.2s'
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,212,255,0.1)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >✎</button>
-            <button onClick={onDelete} style={{
-              background: 'none', border: 'none', color: '#f87171', cursor: 'pointer',
-              fontSize: '13px', padding: '5px 8px', borderRadius: '6px', transition: 'background 0.2s'
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >✕</button>
+      {/* Tabs */}
+      <div style={{
+        display: 'flex', gap: '4px', padding: '10px 16px',
+        borderBottom: '1px solid rgba(0,212,255,0.08)',
+        background: 'rgba(0,0,0,0.15)'
+      }}>
+        <TabBtn id="songs" label={`♪ CANCIONES${songs.length ? ' (' + songs.length + ')' : ''}`} />
+        <TabBtn id="chat" label={`💬 CHAT${chatMessages.length ? ' (' + chatMessages.length + ')' : ''}`} />
+        <TabBtn id="comments" label={`📝 NOTAS${comments.length ? ' (' + comments.length + ')' : ''}`} />
+      </div>
+
+      <div style={{ padding: '16px 20px' }}>
+
+        {/* ── CANCIONES ── */}
+        {view === 'songs' && (
+          <div>
+            {songs.length > 0 && (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={songs.map(s => s.id)} strategy={horizontalListSortingStrategy}>
+                  <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', overflowX: 'auto', paddingBottom: '6px' }}>
+                    {songs.map((ss, i) => (
+                      <SortableTab
+                        key={ss.id} ss={ss} index={i}
+                        isActive={activeSongIndex === i}
+                        onClick={() => setActiveSongIndex(i)}
+                        canEdit={canEdit}
+                        onRemove={() => removeSong(ss.id, i)}
+                      />
+                    ))}
+                    {canEdit && (
+                      <button onClick={() => setShowAddSong(!showAddSong)} style={{
+                        flexShrink: 0, width: '40px', height: '40px', borderRadius: '8px', cursor: 'pointer',
+                        background: showAddSong ? 'rgba(6,255,165,0.1)' : 'rgba(0,0,0,0.2)',
+                        border: '1px solid ' + (showAddSong ? 'rgba(6,255,165,0.4)' : 'rgba(255,255,255,0.1)'),
+                        color: showAddSong ? '#06ffa5' : '#64748b', fontSize: '20px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        alignSelf: 'center', transition: 'all 0.2s'
+                      }}>+</button>
+                    )}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+
+            {showAddSong && (
+              <div style={{
+                background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(6,255,165,0.2)',
+                borderRadius: '10px', padding: '12px', marginBottom: '16px',
+                animation: 'fadeInUp 0.2s ease forwards'
+              }}>
+                <p style={{ color: '#06ffa5', fontSize: '10px', letterSpacing: '1px', margin: '0 0 8px', textTransform: 'uppercase' }}>
+                  SELECCIONA UNA CANCIÓN
+                </p>
+                <input type="text" placeholder="Buscar canción..." value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="input-field" style={{ marginBottom: '8px', fontSize: '13px' }}
+                />
+                <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {availableSongs.map(song => (
+                    <button key={song.id} onClick={() => addSong(song.id)} style={{
+                      textAlign: 'left', padding: '10px 14px', borderRadius: '7px',
+                      background: 'transparent', border: '1px solid transparent',
+                      color: '#e2e8f0', cursor: 'pointer', fontSize: '13px', transition: 'all 0.15s',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(6,255,165,0.08)'; e.currentTarget.style.borderColor = 'rgba(6,255,165,0.2)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}>
+                      <span>{song.title}</span>
+                      <span style={{
+                        fontSize: '10px', padding: '2px 8px', borderRadius: '20px',
+                        background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa'
+                      }}>{song.preferred_key || song.original_key}</span>
+                    </button>
+                  ))}
+                  {availableSongs.length === 0 && (
+                    <p style={{ color: '#475569', fontSize: '12px', margin: 0, padding: '8px', textAlign: 'center' }}>
+                      {search ? 'Sin resultados' : 'No hay más canciones'}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {songs.length === 0 && !showAddSong && (
+              <div style={{ textAlign: 'center', padding: '30px', color: '#475569' }}>
+                <div style={{ fontSize: '32px', marginBottom: '8px', opacity: 0.3 }}>♪</div>
+                <p style={{ margin: '0 0 12px', fontSize: '13px' }}>No hay canciones asignadas</p>
+                {canEdit && (
+                  <button onClick={() => setShowAddSong(true)} className="btn-primary" style={{ padding: '8px 20px' }}>
+                    + AGREGAR CANCIÓN
+                  </button>
+                )}
+              </div>
+            )}
+
+            {activeSong && (
+              <SongViewer
+                key={activeSong.id}
+                song={activeSong}
+                autoExpand={isMobile}
+                hasNext={hasNext}
+                hasPrev={hasPrev}
+                onNext={goNext}
+                onPrev={goPrev}
+                serviceSongs={songs.map(ss => ss.songs)}
+              />
+            )}
+          </div>
+        )}
+
+        {/* ── CHAT ── */}
+        {view === 'chat' && (
+          <div>
+            <div style={{
+              maxHeight: '320px', overflowY: 'auto',
+              display: 'flex', flexDirection: 'column', gap: '8px',
+              marginBottom: '12px', paddingRight: '4px'
+            }}>
+              {chatMessages.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px', color: '#475569' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '8px', opacity: 0.3 }}>💬</div>
+                  <p style={{ margin: 0, fontSize: '13px' }}>Sin mensajes. Inicia la conversación.</p>
+                </div>
+              ) : (
+                chatMessages.map(m => {
+                  const isMe = m.user_id === user.id
+                  return (
+                    <div key={m.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                      {!isMe && (
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
+                          background: 'rgba(0,212,255,0.15)', border: '1px solid rgba(0,212,255,0.2)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '11px', fontWeight: '700', color: '#00d4ff', marginRight: '8px', alignSelf: 'flex-end'
+                        }}>
+                          {(m.profiles?.full_name || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{
+                        maxWidth: '72%', padding: '9px 13px',
+                        borderRadius: isMe ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                        background: isMe ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.05)',
+                        border: '1px solid ' + (isMe ? 'rgba(0,212,255,0.25)' : 'rgba(255,255,255,0.08)')
+                      }}>
+                        {!isMe && (
+                          <p style={{ margin: '0 0 3px', fontSize: '10px', fontWeight: '700', color: '#00d4ff' }}>
+                            {m.profiles?.full_name}
+                          </p>
+                        )}
+                        <p style={{ margin: '0 0 4px', fontSize: '13px', color: '#e2e8f0', lineHeight: '1.4' }}>{m.message}</p>
+                        <p style={{ margin: 0, fontSize: '10px', color: '#334155', textAlign: isMe ? 'right' : 'left' }}>
+                          {dayjs(m.created_at).format('HH:mm')}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+              <div ref={chatEndRef} />
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input value={newMessage} onChange={e => setNewMessage(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                placeholder="Escribe un mensaje... (Enter para enviar)"
+                className="input-field" style={{ flex: 1, fontSize: '13px' }}
+              />
+              <button onClick={sendMessage} disabled={sendingMsg || !newMessage.trim()} style={{
+                padding: '0 16px', borderRadius: '8px', cursor: 'pointer',
+                background: !newMessage.trim() ? 'rgba(0,212,255,0.1)' : 'linear-gradient(135deg, #00d4ff, #7c3aed)',
+                border: 'none', color: 'white', fontSize: '13px', fontWeight: '600',
+                opacity: !newMessage.trim() ? 0.5 : 1, transition: 'all 0.2s'
+              }}>Enviar</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── NOTAS ── */}
+        {view === 'comments' && (
+          <div>
+            <div style={{
+              maxHeight: '240px', overflowY: 'auto',
+              display: 'flex', flexDirection: 'column', gap: '8px',
+              marginBottom: '12px'
+            }}>
+              {comments.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: '#475569' }}>
+                  <div style={{ fontSize: '28px', marginBottom: '8px', opacity: 0.3 }}>📝</div>
+                  <p style={{ margin: 0, fontSize: '13px' }}>Sin notas aún</p>
+                </div>
+              ) : (
+                comments.map(c => (
+                  <div key={c.id} style={{
+                    padding: '10px 14px', borderRadius: '10px',
+                    background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(0,212,255,0.08)',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,212,255,0.2)'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(0,212,255,0.08)'}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <div style={{
+                        width: '22px', height: '22px', borderRadius: '50%',
+                        background: 'rgba(0,212,255,0.15)', border: '1px solid rgba(0,212,255,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '10px', fontWeight: '700', color: '#00d4ff', flexShrink: 0
+                      }}>
+                        {(c.profiles?.full_name || '?')[0].toUpperCase()}
+                      </div>
+                      <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: '#00d4ff' }}>{c.profiles?.full_name}</p>
+                      <p style={{ margin: '0 0 0 auto', fontSize: '10px', color: '#334155' }}>{dayjs(c.created_at).format('DD/MM HH:mm')}</p>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.5' }}>{c.content}</p>
+                  </div>
+                ))
+              )}
+            </div>
+            {(isPastor || canEdit) && (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input value={newComment} onChange={e => setNewComment(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addComment()}
+                  placeholder="Escribe una nota..."
+                  className="input-field" style={{ flex: 1, fontSize: '13px' }}
+                />
+                <button onClick={addComment} disabled={sendingComment || !newComment.trim()} style={{
+                  padding: '0 16px', borderRadius: '8px', cursor: 'pointer',
+                  background: !newComment.trim() ? 'rgba(0,212,255,0.1)' : 'linear-gradient(135deg, #00d4ff, #7c3aed)',
+                  border: 'none', color: 'white', fontSize: '13px', fontWeight: '600',
+                  opacity: !newComment.trim() ? 0.5 : 1, transition: 'all 0.2s'
+                }}>Enviar</button>
+              </div>
+            )}
           </div>
         )}
       </div>
