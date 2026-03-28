@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-
-const KEYS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+import { KEYS_GROUPED } from '../../lib/transposer'
 
 const TAGS_AVAILABLE = [
   { id: 'adoracion',  label: 'Adoración',  color: '#00d4ff' },
@@ -64,18 +63,13 @@ export default function SongForm({ song, onClose, onSaved }) {
     }}>{label}</button>
   )
 
+  // Badge del tono seleccionado
+  const isMinorKey = form.original_key.endsWith('m') && !form.original_key.endsWith('maj')
+  const keyRoot    = isMinorKey ? form.original_key.slice(0, -1) : form.original_key
+
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-      zIndex: 50, padding: '12px', backdropFilter: 'blur(4px)', overflowY: 'auto'
-    }}>
-      <div style={{
-        background: '#0d1b2a', border: '1px solid rgba(0,212,255,0.3)',
-        borderRadius: '16px', width: '100%', maxWidth: '580px',
-        boxShadow: '0 0 60px rgba(0,212,255,0.1)',
-        animation: 'fadeInUp 0.3s ease forwards', margin: 'auto', overflow: 'hidden'
-      }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 50, padding: '12px', backdropFilter: 'blur(4px)', overflowY: 'auto' }}>
+      <div style={{ background: '#0d1b2a', border: '1px solid rgba(0,212,255,0.3)', borderRadius: '16px', width: '100%', maxWidth: '580px', boxShadow: '0 0 60px rgba(0,212,255,0.1)', animation: 'fadeInUp 0.3s ease forwards', margin: 'auto', overflow: 'hidden' }}>
         <div style={{ padding: '18px 20px' }}>
 
           {/* Header */}
@@ -83,7 +77,7 @@ export default function SongForm({ song, onClose, onSaved }) {
             <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#00d4ff', margin: 0 }}>
               {song ? '✎ EDITAR CANCIÓN' : '+ NUEVA CANCIÓN'}
             </h2>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '22px', cursor: 'pointer', lineHeight: 1, padding: '2px 6px' }}>×</button>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '22px', cursor: 'pointer', padding: '2px 6px' }}>×</button>
           </div>
 
           {/* Tabs */}
@@ -104,25 +98,93 @@ export default function SongForm({ song, onClose, onSaved }) {
                     required className="input-field" placeholder="Nombre de la canción" />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <div>
-                    <label style={labelStyle}>Tono original</label>
-                    <select value={form.original_key} onChange={e => set('original_key', e.target.value)} className="input-field">
-                      {KEYS.map(k => <option key={k} value={k}>{k}</option>)}
-                    </select>
+                {/* Tono original — selector visual agrupado */}
+                <div>
+                  <label style={labelStyle}>
+                    Tono original
+                    {form.original_key && (
+                      <span style={{ marginLeft: '8px', color: '#00d4ff', fontWeight: '700', fontFamily: 'Orbitron, sans-serif', fontSize: '12px' }}>
+                        {form.original_key}
+                      </span>
+                    )}
+                  </label>
+
+                  {/* Vista previa del tono seleccionado */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.15)' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+                      <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '28px', fontWeight: '900', color: '#00d4ff', lineHeight: 1 }}>
+                        {keyRoot}
+                      </span>
+                      {isMinorKey && (
+                        <span style={{ fontSize: '14px', color: '#a78bfa', fontWeight: '700' }}>m</span>
+                      )}
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, color: '#64748b', fontSize: '10px', letterSpacing: '0.5px' }}>
+                        {isMinorKey ? 'Tono menor' : 'Tono mayor'}
+                      </p>
+                      <p style={{ margin: 0, color: '#334155', fontSize: '10px' }}>
+                        {isMinorKey ? 'Los acordes se transpondrán correctamente' : 'Usa # al subir, ♭ al bajar'}
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Grupos de tonos */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', borderRadius: '10px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    {Object.entries(KEYS_GROUPED).map(([groupName, keys]) => (
+                      <div key={groupName}>
+                        <p style={{ color: '#334155', fontSize: '9px', letterSpacing: '1.5px', textTransform: 'uppercase', margin: '0 0 5px', fontWeight: '700' }}>
+                          {groupName}
+                        </p>
+                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                          {keys.map(key => {
+                            const isSelected = form.original_key === key
+                            const isMn       = key.endsWith('m')
+                            const root       = isMn ? key.slice(0, -1) : key
+                            const hasFlat    = root.includes('b')
+                            const hasSharp   = root.includes('#')
+                            return (
+                              <button key={key} type="button" onClick={() => set('original_key', key)} style={{
+                                width: '44px', height: '40px', borderRadius: '8px', cursor: 'pointer',
+                                background: isSelected
+                                  ? 'linear-gradient(135deg, rgba(0,212,255,0.25), rgba(124,58,237,0.2))'
+                                  : 'rgba(255,255,255,0.04)',
+                                border: '1px solid ' + (isSelected ? 'rgba(0,212,255,0.6)' : 'rgba(255,255,255,0.08)'),
+                                transition: 'all 0.15s',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                boxShadow: isSelected ? '0 0 10px rgba(0,212,255,0.2)' : 'none'
+                              }}
+                              onMouseEnter={e => { if (!isSelected) e.currentTarget.style.borderColor = 'rgba(0,212,255,0.3)' }}
+                              onMouseLeave={e => { if (!isSelected) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '1px' }}>
+                                  <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '12px', fontWeight: '900', color: isSelected ? '#00d4ff' : hasFlat ? '#f87171' : hasSharp ? '#60a5fa' : '#94a3b8', lineHeight: 1 }}>
+                                    {root}
+                                  </span>
+                                  {isMn && (
+                                    <span style={{ fontSize: '8px', color: isSelected ? '#a78bfa' : '#475569', fontWeight: '700' }}>m</span>
+                                  )}
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div>
                     <label style={labelStyle}>BPM</label>
                     <input type="number" value={form.bpm} min="40" max="240"
                       onChange={e => set('bpm', e.target.value)}
                       className="input-field" placeholder="120" />
                   </div>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Link YouTube</label>
-                  <input value={form.youtube_url} onChange={e => set('youtube_url', e.target.value)}
-                    className="input-field" placeholder="https://youtube.com/watch?v=..." type="url" />
+                  <div>
+                    <label style={labelStyle}>Link YouTube</label>
+                    <input value={form.youtube_url} onChange={e => set('youtube_url', e.target.value)}
+                      className="input-field" placeholder="https://youtube.com/..." type="url" />
+                  </div>
                 </div>
 
                 {/* Tags */}
@@ -135,12 +197,7 @@ export default function SongForm({ song, onClose, onSaved }) {
                       </span>
                     )}
                   </label>
-                  <div style={{
-                    display: 'flex', gap: '6px', flexWrap: 'wrap',
-                    padding: '10px 12px', borderRadius: '8px',
-                    background: 'rgba(0,0,0,0.25)',
-                    border: '1px solid rgba(124,58,237,0.18)'
-                  }}>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '10px 12px', borderRadius: '8px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(124,58,237,0.18)' }}>
                     {TAGS_AVAILABLE.map(tag => {
                       const active = (form.tags || []).includes(tag.id)
                       return (
@@ -149,8 +206,7 @@ export default function SongForm({ song, onClose, onSaved }) {
                           background: active ? tag.color + '22' : 'rgba(255,255,255,0.04)',
                           border: '1px solid ' + (active ? tag.color + '66' : 'rgba(255,255,255,0.08)'),
                           color: active ? tag.color : '#475569',
-                          fontSize: '11px', fontWeight: '600',
-                          transition: 'all 0.15s'
+                          fontSize: '11px', fontWeight: '600', transition: 'all 0.15s'
                         }}>
                           {active && <span style={{ marginRight: '4px' }}>✓</span>}
                           {tag.label}
@@ -158,11 +214,6 @@ export default function SongForm({ song, onClose, onSaved }) {
                       )
                     })}
                   </div>
-                  {(form.tags || []).length === 0 && (
-                    <p style={{ color: '#334155', fontSize: '10px', margin: '5px 0 0' }}>
-                      Las etiquetas ayudan a filtrar y organizar el repertorio
-                    </p>
-                  )}
                 </div>
               </>
             )}
@@ -204,11 +255,9 @@ export default function SongForm({ song, onClose, onSaved }) {
 
             {/* Botones */}
             <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
-              <button type="button" onClick={onClose} style={{
-                flex: 1, padding: '11px', borderRadius: '8px', cursor: 'pointer',
-                background: 'transparent', border: '1px solid rgba(100,116,139,0.4)',
-                color: '#94a3b8', fontSize: '13px', fontWeight: '600', letterSpacing: '1px'
-              }}>CANCELAR</button>
+              <button type="button" onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: '8px', cursor: 'pointer', background: 'transparent', border: '1px solid rgba(100,116,139,0.4)', color: '#94a3b8', fontSize: '13px', fontWeight: '600', letterSpacing: '1px' }}>
+                CANCELAR
+              </button>
               <button type="submit" disabled={saving} className="btn-primary" style={{ flex: 1, padding: '11px' }}>
                 {saving ? 'GUARDANDO...' : song ? 'GUARDAR' : 'CREAR CANCIÓN'}
               </button>
