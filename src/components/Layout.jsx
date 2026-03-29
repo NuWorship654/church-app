@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useOfflineSync } from '../hooks/useOfflineSync'
+import GlobalSearch from './GlobalSearch'
 
 export default function Layout() {
   const { profile, signOut, isAdmin } = useAuth()
@@ -25,7 +26,9 @@ export default function Layout() {
     const standalone = window.matchMedia('(display-mode: standalone)').matches
     setIsIOS(ios)
     setIsInstalled(standalone)
-    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); setInstallPrompt(e) })
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault(); setInstallPrompt(e)
+    })
     window.addEventListener('appinstalled', () => setIsInstalled(true))
   }, [])
 
@@ -61,12 +64,14 @@ export default function Layout() {
     { to: '/songs',      label: 'CANCIONES',  icon: '♪' },
     { to: '/secuencias', label: 'SECUENCIAS', icon: '🎵' },
     { to: '/calendar',   label: 'CALENDARIO', icon: '🗓' },
+    { to: '/chat',       label: 'CHAT',       icon: '💬' },
     { to: '/stats',      label: 'STATS',      icon: '◈' },
     ...(isAdmin ? [{ to: '/users', label: 'USUARIOS', icon: '👥' }] : [])
   ]
 
   const roleColors = {
-    admin: '#7c3aed', worship_leader: '#00d4ff', pastor: '#06ffa5', member: '#f59e0b'
+    admin: '#7c3aed', worship_leader: '#00d4ff',
+    pastor: '#06ffa5', member: '#f59e0b'
   }
 
   const InstallButton = ({ mobile = false }) => {
@@ -101,10 +106,16 @@ export default function Layout() {
     ]
     const color = isIOS ? '#00d4ff' : '#06ffa5'
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '16px' }}
-        onClick={onClose}>
-        <div style={{ background: '#0d1b2a', border: `1px solid ${color}44`, borderRadius: '20px', padding: '24px', width: '100%', maxWidth: '420px', animation: 'fadeInUp 0.3s ease forwards' }}
-          onClick={e => e.stopPropagation()}>
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '16px'
+      }} onClick={onClose}>
+        <div style={{
+          background: '#0d1b2a', border: `1px solid ${color}44`,
+          borderRadius: '20px', padding: '24px', width: '100%', maxWidth: '420px',
+          animation: 'fadeInUp 0.3s ease forwards'
+        }} onClick={e => e.stopPropagation()}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h3 style={{ fontFamily: 'Orbitron, sans-serif', color, fontSize: '13px', margin: 0 }}>
               INSTALAR EN {isIOS ? 'IPHONE' : 'ANDROID'}
@@ -120,9 +131,12 @@ export default function Layout() {
               </div>
             </div>
           ))}
-          <button onClick={onClose} style={{ width: '100%', marginTop: '20px', padding: '12px', borderRadius: '10px', background: `linear-gradient(135deg, ${color}, ${isIOS ? '#7c3aed' : '#00d4ff'})`, border: 'none', color: isIOS ? 'white' : '#0d1b2a', fontSize: '13px', fontWeight: '700', cursor: 'pointer', letterSpacing: '1px' }}>
-            ENTENDIDO
-          </button>
+          <button onClick={onClose} style={{
+            width: '100%', marginTop: '20px', padding: '12px', borderRadius: '10px',
+            background: `linear-gradient(135deg, ${color}, ${isIOS ? '#7c3aed' : '#00d4ff'})`,
+            border: 'none', color: isIOS ? 'white' : '#0d1b2a',
+            fontSize: '13px', fontWeight: '700', cursor: 'pointer', letterSpacing: '1px'
+          }}>ENTENDIDO</button>
         </div>
       </div>
     )
@@ -134,19 +148,38 @@ export default function Layout() {
   return (
     <div style={{ minHeight: '100vh', background: '#020817', overflowX: 'hidden' }}>
 
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(rgba(0,212,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.02) 1px, transparent 1px)', backgroundSize: '50px 50px' }} />
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+        backgroundImage: 'linear-gradient(rgba(0,212,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.02) 1px, transparent 1px)',
+        backgroundSize: '50px 50px'
+      }} />
 
       {/* ── Navbar ── */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(2,8,23,0.95)', borderBottom: '1px solid rgba(74,111,165,0.25)', backdropFilter: 'blur(10px)', padding: '0 12px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', overflowX: 'hidden' }}>
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'rgba(2,8,23,0.95)',
+        borderBottom: '1px solid rgba(74,111,165,0.25)',
+        backdropFilter: 'blur(10px)',
+        padding: '0 12px', height: '56px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        width: '100%', overflowX: 'hidden'
+      }}>
 
         {/* Logo */}
         <NavLink to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #4a6fa5, #2d4f7c)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, boxShadow: '0 0 12px rgba(74,111,165,0.4)' }}>
+          <div style={{
+            width: '32px', height: '32px', borderRadius: '8px',
+            background: 'linear-gradient(135deg, #4a6fa5, #2d4f7c)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            overflow: 'hidden', flexShrink: 0, boxShadow: '0 0 12px rgba(74,111,165,0.4)'
+          }}>
             <img src="/logo.png" alt="Logo" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
           </div>
-          <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '13px', fontWeight: '900', background: 'linear-gradient(135deg, #00d4ff, #4a6fa5)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            WORSHIP
-          </span>
+          <span style={{
+            fontFamily: 'Orbitron, sans-serif', fontSize: '13px', fontWeight: '900',
+            background: 'linear-gradient(135deg, #00d4ff, #4a6fa5)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
+          }}>WORSHIP</span>
         </NavLink>
 
         {/* Nav desktop */}
@@ -154,9 +187,9 @@ export default function Layout() {
           {navItems.map(item => (
             <NavLink key={item.to} to={item.to} end={item.to === '/'}
               style={({ isActive }) => ({
-                padding: '5px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '600',
-                letterSpacing: '0.5px', textDecoration: 'none', transition: 'all 0.3s',
-                whiteSpace: 'nowrap',
+                padding: '5px 8px', borderRadius: '6px',
+                fontSize: '10px', fontWeight: '600', letterSpacing: '0.5px',
+                textDecoration: 'none', transition: 'all 0.3s', whiteSpace: 'nowrap',
                 background: isActive ? 'rgba(74,111,165,0.15)' : 'transparent',
                 color: isActive ? '#7ab3e0' : '#64748b',
                 border: isActive ? '1px solid rgba(74,111,165,0.4)' : '1px solid transparent'
@@ -172,7 +205,11 @@ export default function Layout() {
 
           {/* Indicador sync */}
           {showOfflineBanner && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 8px', borderRadius: '20px', background: offlineColor + '15', border: '1px solid ' + offlineColor + '40' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '4px 8px', borderRadius: '20px',
+              background: offlineColor + '15', border: '1px solid ' + offlineColor + '40'
+            }}>
               {syncing
                 ? <div style={{ width: '10px', height: '10px', borderRadius: '50%', border: '2px solid ' + offlineColor + '30', borderTop: '2px solid ' + offlineColor, animation: 'spin 0.8s linear infinite' }} />
                 : <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: offlineColor }} />
@@ -182,6 +219,9 @@ export default function Layout() {
               </span>
             </div>
           )}
+
+          {/* Búsqueda global */}
+          <GlobalSearch />
 
           {/* Instalar */}
           <div className="nav-desktop"><InstallButton /></div>
@@ -206,18 +246,33 @@ export default function Layout() {
 
           {/* Avatar */}
           <NavLink to="/profile" style={{ textDecoration: 'none' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(74,111,165,0.4), rgba(45,79,124,0.4))', border: '2px solid ' + (roleColors[profile?.role] || '#64748b') + '66', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: '700', color: '#e2e8f0', flexShrink: 0 }}>
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer',
+              background: 'linear-gradient(135deg, rgba(74,111,165,0.4), rgba(45,79,124,0.4))',
+              border: '2px solid ' + (roleColors[profile?.role] || '#64748b') + '66',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '13px', fontWeight: '700', color: '#e2e8f0', flexShrink: 0
+            }}>
               {(profile?.full_name || '?')[0].toUpperCase()}
             </div>
           </NavLink>
 
           {/* Salir desktop */}
-          <button onClick={handleSignOut} className="nav-desktop-btn" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            SALIR
-          </button>
+          <button onClick={handleSignOut} className="nav-desktop-btn" style={{
+            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+            color: '#f87171', padding: '5px 10px', borderRadius: '6px',
+            fontSize: '11px', fontWeight: '600', letterSpacing: '1px',
+            cursor: 'pointer', whiteSpace: 'nowrap'
+          }}>SALIR</button>
 
           {/* Hamburguesa */}
-          <button onClick={() => setMenuOpen(!menuOpen)} className="nav-mobile-btn" style={{ background: menuOpen ? 'rgba(0,212,255,0.1)' : 'none', border: menuOpen ? '1px solid rgba(0,212,255,0.3)' : 'none', color: '#94a3b8', fontSize: '20px', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+          <button onClick={() => setMenuOpen(!menuOpen)} className="nav-mobile-btn" style={{
+            background: menuOpen ? 'rgba(0,212,255,0.1)' : 'none',
+            border: menuOpen ? '1px solid rgba(0,212,255,0.3)' : 'none',
+            color: '#94a3b8', fontSize: '20px', cursor: 'pointer', padding: '6px',
+            borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.2s'
+          }}>
             {menuOpen ? '✕' : '☰'}
           </button>
         </div>
@@ -225,11 +280,22 @@ export default function Layout() {
 
       {/* ── Menú móvil ── */}
       {menuOpen && (
-        <div className="nav-mobile-btn" style={{ position: 'fixed', top: '56px', left: 0, right: 0, zIndex: 49, background: 'rgba(2,8,23,0.98)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(74,111,165,0.2)', padding: '8px 12px 16px', display: 'flex', flexDirection: 'column', gap: '4px', animation: 'fadeInUp 0.2s ease forwards', maxHeight: 'calc(100vh - 56px)', overflowY: 'auto' }}>
+        <div className="nav-mobile-btn" style={{
+          position: 'fixed', top: '56px', left: 0, right: 0, zIndex: 49,
+          background: 'rgba(2,8,23,0.98)', backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid rgba(74,111,165,0.2)',
+          padding: '8px 12px 16px', display: 'flex', flexDirection: 'column', gap: '4px',
+          animation: 'fadeInUp 0.2s ease forwards',
+          maxHeight: 'calc(100vh - 56px)', overflowY: 'auto'
+        }}>
 
           {/* Banner offline móvil */}
           {showOfflineBanner && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderRadius: '10px', marginBottom: '4px', background: offlineColor + '12', border: '1px solid ' + offlineColor + '35' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '10px 14px', borderRadius: '10px', marginBottom: '4px',
+              background: offlineColor + '12', border: '1px solid ' + offlineColor + '35'
+            }}>
               {syncing
                 ? <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: '2px solid ' + offlineColor + '30', borderTop: '2px solid ' + offlineColor, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
                 : <span style={{ fontSize: '14px' }}>{!isOnline ? '📵' : '⏳'}</span>
@@ -253,8 +319,9 @@ export default function Layout() {
           {navItems.map(item => (
             <NavLink key={item.to} to={item.to} end={item.to === '/'}
               style={({ isActive }) => ({
-                padding: '13px 16px', borderRadius: '10px', fontSize: '14px', fontWeight: '600',
-                letterSpacing: '1px', textDecoration: 'none', transition: 'all 0.2s',
+                padding: '13px 16px', borderRadius: '10px',
+                fontSize: '14px', fontWeight: '600', letterSpacing: '1px',
+                textDecoration: 'none', transition: 'all 0.2s',
                 background: isActive ? 'rgba(74,111,165,0.15)' : 'transparent',
                 color: isActive ? '#7ab3e0' : '#94a3b8',
                 border: isActive ? '1px solid rgba(74,111,165,0.3)' : '1px solid transparent',
@@ -267,6 +334,7 @@ export default function Layout() {
           ))}
 
           <div style={{ borderTop: '1px solid rgba(74,111,165,0.15)', marginTop: '8px', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+
             <NavLink to="/profile" style={{ textDecoration: 'none' }}>
               <div style={{ padding: '13px 16px', borderRadius: '10px', cursor: 'pointer', background: 'transparent', border: '1px solid transparent', color: '#94a3b8', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>👤</span>
@@ -274,7 +342,15 @@ export default function Layout() {
               </div>
             </NavLink>
 
-            <button onClick={() => { handleRefresh(); setMenuOpen(false) }} disabled={refreshing} style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', cursor: refreshing ? 'not-allowed' : 'pointer', background: refreshing ? 'rgba(0,212,255,0.06)' : 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)', color: refreshing ? '#00d4ff' : '#64748b', fontSize: '14px', fontWeight: '600', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', transition: 'all 0.2s' }}>
+            <button onClick={() => { handleRefresh(); setMenuOpen(false) }} disabled={refreshing} style={{
+              width: '100%', padding: '13px 16px', borderRadius: '10px',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+              background: refreshing ? 'rgba(0,212,255,0.06)' : 'rgba(0,212,255,0.05)',
+              border: '1px solid rgba(0,212,255,0.15)',
+              color: refreshing ? '#00d4ff' : '#64748b',
+              fontSize: '14px', fontWeight: '600', textAlign: 'left',
+              display: 'flex', alignItems: 'center', gap: '12px', transition: 'all 0.2s'
+            }}>
               {refreshing
                 ? <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid rgba(0,212,255,0.2)', borderTop: '2px solid #00d4ff', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
                 : <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>↻</span>
@@ -284,7 +360,12 @@ export default function Layout() {
 
             <InstallButton mobile={true} />
 
-            <button onClick={() => { handleSignOut(); setMenuOpen(false) }} style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontSize: '14px', fontWeight: '600', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button onClick={() => { handleSignOut(); setMenuOpen(false) }} style={{
+              width: '100%', padding: '13px 16px', borderRadius: '10px', cursor: 'pointer',
+              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+              color: '#f87171', fontSize: '14px', fontWeight: '600', textAlign: 'left',
+              display: 'flex', alignItems: 'center', gap: '12px'
+            }}>
               <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>✕</span>
               CERRAR SESIÓN
             </button>
@@ -297,7 +378,17 @@ export default function Layout() {
 
       {/* Banner offline flotante */}
       {showOfflineBanner && !menuOpen && (
-        <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 18px', borderRadius: '24px', background: 'rgba(2,8,23,0.95)', border: '1px solid ' + offlineColor + '40', backdropFilter: 'blur(12px)', boxShadow: '0 4px 24px rgba(0,0,0,0.4)', animation: 'fadeInUp 0.3s ease forwards', whiteSpace: 'nowrap', maxWidth: 'calc(100vw - 32px)' }}>
+        <div style={{
+          position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 60, display: 'flex', alignItems: 'center', gap: '8px',
+          padding: '9px 18px', borderRadius: '24px',
+          background: 'rgba(2,8,23,0.95)',
+          border: '1px solid ' + offlineColor + '40',
+          backdropFilter: 'blur(12px)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+          animation: 'fadeInUp 0.3s ease forwards',
+          whiteSpace: 'nowrap', maxWidth: 'calc(100vw - 32px)'
+        }}>
           {syncing ? (
             <>
               <div style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid ' + offlineColor + '30', borderTop: '2px solid ' + offlineColor, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
@@ -324,7 +415,11 @@ export default function Layout() {
         </div>
       )}
 
-      <main style={{ position: 'relative', zIndex: 1, maxWidth: '1100px', margin: '0 auto', padding: '16px 12px', width: '100%', overflowX: 'hidden' }}>
+      <main style={{
+        position: 'relative', zIndex: 1,
+        maxWidth: '1100px', margin: '0 auto',
+        padding: '16px 12px', width: '100%', overflowX: 'hidden'
+      }}>
         <Outlet />
       </main>
     </div>

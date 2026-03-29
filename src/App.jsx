@@ -11,6 +11,7 @@ import Users from './pages/Users'
 import Profile from './pages/Profile'
 import Secuencias from './pages/Secuencias'
 import Calendar from './pages/Calendar'
+import TeamChat from './pages/TeamChat'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -26,7 +27,10 @@ function PrivateRoute({ children }) {
         borderTop: '3px solid #00d4ff',
         animation: 'spin 0.8s linear infinite'
       }} />
-      <div style={{ fontFamily: 'Orbitron, sans-serif', color: '#00d4ff', fontSize: '12px', letterSpacing: '3px' }}>
+      <div style={{
+        fontFamily: 'Orbitron, sans-serif',
+        color: '#00d4ff', fontSize: '12px', letterSpacing: '3px'
+      }}>
         CARGANDO...
       </div>
     </div>
@@ -41,12 +45,13 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<Dashboard />} />
+            <Route index           element={<Dashboard />} />
             <Route path="songs"      element={<Songs />} />
             <Route path="services"   element={<Services />} />
             <Route path="rehearsals" element={<Rehearsals />} />
             <Route path="secuencias" element={<Secuencias />} />
             <Route path="calendar"   element={<Calendar />} />
+            <Route path="chat"       element={<TeamChat />} />
             <Route path="stats"      element={<Stats />} />
             <Route path="users"      element={<Users />} />
             <Route path="profile"    element={<Profile />} />
