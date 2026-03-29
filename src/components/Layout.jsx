@@ -13,10 +13,11 @@ export default function Layout() {
   const [isInstalled,      setIsInstalled]      = useState(false)
   const [showIOSGuide,     setShowIOSGuide]     = useState(false)
   const [showAndroidGuide, setShowAndroidGuide] = useState(false)
+  const [refreshing,       setRefreshing]       = useState(false)
+  const [refreshed,        setRefreshed]        = useState(false)
 
   const { isOnline, queueSize, syncing, syncFromCloud } = useOfflineSync()
 
-  // Cierra menú al cambiar ruta
   useEffect(() => { setMenuOpen(false) }, [location.pathname])
 
   useEffect(() => {
@@ -27,6 +28,21 @@ export default function Layout() {
     window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); setInstallPrompt(e) })
     window.addEventListener('appinstalled', () => setIsInstalled(true))
   }, [])
+
+  const handleRefresh = async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    setRefreshed(false)
+    try {
+      await syncFromCloud()
+      // Recarga la página actual para que los componentes re-fetchen
+      window.location.reload()
+    } catch {
+      setRefreshing(false)
+      setRefreshed(true)
+      setTimeout(() => setRefreshed(false), 2000)
+    }
+  }
 
   const handleInstall = async () => {
     if (isIOS) { setShowIOSGuide(true); setMenuOpen(false); return }
@@ -76,14 +92,14 @@ export default function Layout() {
   const GuideModal = ({ show, onClose, isIOS }) => {
     if (!show) return null
     const steps = isIOS ? [
-      { icon: '1️⃣', text: 'Abre esta página en Safari',   sub: 'No funciona en Chrome ni Firefox' },
-      { icon: '2️⃣', text: 'Toca el botón de compartir',   sub: 'El ícono de cuadro con flecha arriba' },
+      { icon: '1️⃣', text: 'Abre esta página en Safari',    sub: 'No funciona en Chrome ni Firefox' },
+      { icon: '2️⃣', text: 'Toca el botón de compartir',    sub: 'El ícono de cuadro con flecha arriba' },
       { icon: '3️⃣', text: 'Selecciona "Agregar a inicio"', sub: 'Baja en el menú hasta encontrarlo' },
-      { icon: '4️⃣', text: 'Toca "Agregar"',               sub: 'La app aparecerá en tu pantalla de inicio' },
+      { icon: '4️⃣', text: 'Toca "Agregar"',                sub: 'La app aparecerá en tu pantalla de inicio' },
     ] : [
-      { icon: '1️⃣', text: 'Toca los 3 puntos arriba',              sub: 'El menú de Chrome ⋮' },
+      { icon: '1️⃣', text: 'Toca los 3 puntos arriba',               sub: 'El menú de Chrome ⋮' },
       { icon: '2️⃣', text: 'Selecciona "Añadir a pantalla de inicio"', sub: 'O "Instalar aplicación"' },
-      { icon: '3️⃣', text: 'Toca "Instalar"',                       sub: 'La app aparecerá en tu inicio' },
+      { icon: '3️⃣', text: 'Toca "Instalar"',                        sub: 'La app aparecerá en tu inicio' },
     ]
     const color = isIOS ? '#00d4ff' : '#06ffa5'
     return (
@@ -114,8 +130,7 @@ export default function Layout() {
     )
   }
 
-  // Color del indicador offline
-  const offlineColor   = syncing ? '#00d4ff' : !isOnline ? '#f59e0b' : '#a78bfa'
+  const offlineColor      = syncing ? '#00d4ff' : !isOnline ? '#f59e0b' : '#a78bfa'
   const showOfflineBanner = !isOnline || queueSize > 0 || syncing
 
   return (
@@ -124,7 +139,7 @@ export default function Layout() {
       {/* Grid decorativo */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(rgba(0,212,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.02) 1px, transparent 1px)', backgroundSize: '50px 50px' }} />
 
-      {/* Navbar */}
+      {/* ── Navbar ── */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(2,8,23,0.95)', borderBottom: '1px solid rgba(74,111,165,0.25)', backdropFilter: 'blur(10px)', padding: '0 12px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', overflowX: 'hidden' }}>
 
         {/* Logo */}
@@ -153,10 +168,10 @@ export default function Layout() {
           ))}
         </div>
 
-        {/* Acciones derecha */}
+        {/* ── Acciones derecha ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
 
-          {/* Indicador sync compacto en navbar */}
+          {/* Indicador sync compacto */}
           {showOfflineBanner && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 8px', borderRadius: '20px', background: offlineColor + '15', border: '1px solid ' + offlineColor + '40' }}>
               {syncing ? (
@@ -170,27 +185,87 @@ export default function Layout() {
             </div>
           )}
 
-          <div className="nav-desktop"><InstallButton /></div>
+          {/* Instalar app — solo desktop */}
+          <div className="nav-desktop">
+            <InstallButton />
+          </div>
 
+          {/* ── Botón REFRESH ── */}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title="Actualizar datos"
+            style={{
+              width: '32px', height: '32px', borderRadius: '8px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: refreshed
+                ? 'rgba(6,255,165,0.15)'
+                : refreshing
+                  ? 'rgba(0,212,255,0.08)'
+                  : 'rgba(255,255,255,0.05)',
+              border: '1px solid ' + (refreshed
+                ? 'rgba(6,255,165,0.4)'
+                : refreshing
+                  ? 'rgba(0,212,255,0.25)'
+                  : 'rgba(255,255,255,0.1)'),
+              color: refreshed ? '#06ffa5' : refreshing ? '#00d4ff' : '#64748b',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s', flexShrink: 0
+            }}
+          >
+            {refreshing ? (
+              <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: '2px solid rgba(0,212,255,0.2)', borderTop: '2px solid #00d4ff', animation: 'spin 0.7s linear infinite' }} />
+            ) : refreshed ? (
+              <span style={{ fontSize: '14px' }}>✓</span>
+            ) : (
+              <span style={{ fontSize: '15px', display: 'block', lineHeight: 1 }}>↻</span>
+            )}
+          </button>
+
+          {/* Avatar / perfil */}
           <NavLink to="/profile" style={{ textDecoration: 'none' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(74,111,165,0.4), rgba(45,79,124,0.4))', border: '2px solid ' + (roleColors[profile?.role] || '#64748b') + '66', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: '700', color: '#e2e8f0', flexShrink: 0 }}>
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer',
+              background: 'linear-gradient(135deg, rgba(74,111,165,0.4), rgba(45,79,124,0.4))',
+              border: '2px solid ' + (roleColors[profile?.role] || '#64748b') + '66',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '13px', fontWeight: '700', color: '#e2e8f0', flexShrink: 0
+            }}>
               {(profile?.full_name || '?')[0].toUpperCase()}
             </div>
           </NavLink>
 
-          <button onClick={handleSignOut} className="nav-desktop-btn" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            SALIR
-          </button>
+          {/* Salir — solo desktop */}
+          <button onClick={handleSignOut} className="nav-desktop-btn" style={{
+            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+            color: '#f87171', padding: '5px 10px', borderRadius: '6px',
+            fontSize: '11px', fontWeight: '600', letterSpacing: '1px',
+            cursor: 'pointer', whiteSpace: 'nowrap'
+          }}>SALIR</button>
 
-          <button onClick={() => setMenuOpen(!menuOpen)} className="nav-mobile-btn" style={{ background: menuOpen ? 'rgba(0,212,255,0.1)' : 'none', border: menuOpen ? '1px solid rgba(0,212,255,0.3)' : 'none', color: '#94a3b8', fontSize: '20px', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+          {/* Hamburguesa móvil */}
+          <button onClick={() => setMenuOpen(!menuOpen)} className="nav-mobile-btn" style={{
+            background: menuOpen ? 'rgba(0,212,255,0.1)' : 'none',
+            border: menuOpen ? '1px solid rgba(0,212,255,0.3)' : 'none',
+            color: '#94a3b8', fontSize: '20px', cursor: 'pointer', padding: '6px',
+            borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.2s'
+          }}>
             {menuOpen ? '✕' : '☰'}
           </button>
         </div>
       </nav>
 
-      {/* Menú móvil */}
+      {/* ── Menú móvil ── */}
       {menuOpen && (
-        <div className="nav-mobile-btn" style={{ position: 'fixed', top: '56px', left: 0, right: 0, zIndex: 49, background: 'rgba(2,8,23,0.98)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(74,111,165,0.2)', padding: '8px 12px 16px', display: 'flex', flexDirection: 'column', gap: '4px', animation: 'fadeInUp 0.2s ease forwards', maxHeight: 'calc(100vh - 56px)', overflowY: 'auto' }}>
+        <div className="nav-mobile-btn" style={{
+          position: 'fixed', top: '56px', left: 0, right: 0, zIndex: 49,
+          background: 'rgba(2,8,23,0.98)', backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid rgba(74,111,165,0.2)',
+          padding: '8px 12px 16px', display: 'flex', flexDirection: 'column', gap: '4px',
+          animation: 'fadeInUp 0.2s ease forwards',
+          maxHeight: 'calc(100vh - 56px)', overflowY: 'auto'
+        }}>
 
           {/* Estado offline en móvil */}
           {showOfflineBanner && (
@@ -232,14 +307,40 @@ export default function Layout() {
           ))}
 
           <div style={{ borderTop: '1px solid rgba(74,111,165,0.15)', marginTop: '8px', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+
+            {/* Perfil */}
             <NavLink to="/profile" style={{ textDecoration: 'none' }}>
               <div style={{ padding: '13px 16px', borderRadius: '10px', cursor: 'pointer', background: 'transparent', border: '1px solid transparent', color: '#94a3b8', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>👤</span>
                 MI PERFIL
               </div>
             </NavLink>
+
+            {/* Actualizar en móvil */}
+            <button onClick={() => { handleRefresh(); setMenuOpen(false) }} disabled={refreshing} style={{
+              width: '100%', padding: '13px 16px', borderRadius: '10px', cursor: refreshing ? 'not-allowed' : 'pointer',
+              background: refreshing ? 'rgba(0,212,255,0.06)' : 'rgba(0,212,255,0.05)',
+              border: '1px solid rgba(0,212,255,0.15)',
+              color: refreshing ? '#00d4ff' : '#64748b',
+              fontSize: '14px', fontWeight: '600', textAlign: 'left',
+              display: 'flex', alignItems: 'center', gap: '12px', transition: 'all 0.2s'
+            }}>
+              {refreshing ? (
+                <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid rgba(0,212,255,0.2)', borderTop: '2px solid #00d4ff', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+              ) : (
+                <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>↻</span>
+              )}
+              {refreshing ? 'ACTUALIZANDO...' : 'ACTUALIZAR APP'}
+            </button>
+
             <InstallButton mobile={true} />
-            <button onClick={() => { handleSignOut(); setMenuOpen(false) }} style={{ width: '100%', padding: '13px 16px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontSize: '14px', fontWeight: '600', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px' }}>
+
+            <button onClick={() => { handleSignOut(); setMenuOpen(false) }} style={{
+              width: '100%', padding: '13px 16px', borderRadius: '10px', cursor: 'pointer',
+              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+              color: '#f87171', fontSize: '14px', fontWeight: '600', textAlign: 'left',
+              display: 'flex', alignItems: 'center', gap: '12px'
+            }}>
               <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>✕</span>
               CERRAR SESIÓN
             </button>
@@ -251,7 +352,7 @@ export default function Layout() {
       <GuideModal show={showIOSGuide}     onClose={() => setShowIOSGuide(false)}     isIOS={true} />
       <GuideModal show={showAndroidGuide} onClose={() => setShowAndroidGuide(false)} isIOS={false} />
 
-      {/* Banner offline flotante — solo en desktop cuando menú está cerrado */}
+      {/* Banner offline flotante */}
       {showOfflineBanner && !menuOpen && (
         <div style={{
           position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
@@ -260,7 +361,7 @@ export default function Layout() {
           background: 'rgba(2,8,23,0.95)',
           border: '1px solid ' + offlineColor + '40',
           backdropFilter: 'blur(12px)',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px ' + offlineColor + '15',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
           animation: 'fadeInUp 0.3s ease forwards',
           whiteSpace: 'nowrap', maxWidth: 'calc(100vw - 32px)'
         }}>
@@ -273,7 +374,7 @@ export default function Layout() {
             <>
               <span style={{ fontSize: '13px' }}>📵</span>
               <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: '600' }}>
-                Sin conexión{queueSize > 0 ? ` · ${queueSize} cambio${queueSize !== 1 ? 's' : ''} pendiente${queueSize !== 1 ? 's' : ''}` : ' · Modo offline'}
+                Sin conexión{queueSize > 0 ? ` · ${queueSize} pendiente${queueSize !== 1 ? 's' : ''}` : ' · Modo offline'}
               </span>
             </>
           ) : queueSize > 0 ? (
@@ -290,7 +391,7 @@ export default function Layout() {
         </div>
       )}
 
-      {/* Contenido */}
+      {/* Contenido principal */}
       <main style={{ position: 'relative', zIndex: 1, maxWidth: '1100px', margin: '0 auto', padding: '16px 12px', width: '100%', overflowX: 'hidden' }}>
         <Outlet />
       </main>
