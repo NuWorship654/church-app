@@ -5,7 +5,7 @@ import { useOfflineSync } from '../hooks/useOfflineSync'
 import GlobalSearch from './GlobalSearch'
 
 export default function Layout() {
-  const { profile, signOut, isAdmin } = useAuth()
+  const { profile, signOut, isAdmin, isWorshipLeader } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
   const [menuOpen,         setMenuOpen]         = useState(false)
@@ -18,6 +18,8 @@ export default function Layout() {
   const [refreshed,        setRefreshed]        = useState(false)
 
   const { isOnline, queueSize, syncing, syncFromCloud } = useOfflineSync()
+
+  const isLeader = isAdmin || isWorshipLeader
 
   useEffect(() => { setMenuOpen(false) }, [location.pathname])
 
@@ -65,6 +67,7 @@ export default function Layout() {
     { to: '/secuencias', label: 'SECUENCIAS', icon: '🎵' },
     { to: '/calendar',   label: 'CALENDARIO', icon: '🗓' },
     { to: '/chat',       label: 'CHAT',       icon: '💬' },
+    ...(isLeader ? [{ to: '/director', label: 'DIRECTOR', icon: '🎬' }] : []),
     { to: '/stats',      label: 'STATS',      icon: '◈' },
     ...(isAdmin ? [{ to: '/users', label: 'USUARIOS', icon: '👥' }] : [])
   ]
@@ -230,8 +233,12 @@ export default function Layout() {
           <button onClick={handleRefresh} disabled={refreshing} title="Actualizar datos" style={{
             width: '32px', height: '32px', borderRadius: '8px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: refreshed ? 'rgba(6,255,165,0.15)' : refreshing ? 'rgba(0,212,255,0.08)' : 'rgba(255,255,255,0.05)',
-            border: '1px solid ' + (refreshed ? 'rgba(6,255,165,0.4)' : refreshing ? 'rgba(0,212,255,0.25)' : 'rgba(255,255,255,0.1)'),
+            background: refreshed
+              ? 'rgba(6,255,165,0.15)'
+              : refreshing ? 'rgba(0,212,255,0.08)' : 'rgba(255,255,255,0.05)',
+            border: '1px solid ' + (refreshed
+              ? 'rgba(6,255,165,0.4)'
+              : refreshing ? 'rgba(0,212,255,0.25)' : 'rgba(255,255,255,0.1)'),
             color: refreshed ? '#06ffa5' : refreshing ? '#00d4ff' : '#64748b',
             cursor: refreshing ? 'not-allowed' : 'pointer',
             transition: 'all 0.2s', flexShrink: 0

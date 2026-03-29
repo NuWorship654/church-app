@@ -12,6 +12,7 @@ import Profile from './pages/Profile'
 import Secuencias from './pages/Secuencias'
 import Calendar from './pages/Calendar'
 import TeamChat from './pages/TeamChat'
+import DirectorMode from './pages/DirectorMode'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="secuencias" element={<Secuencias />} />
             <Route path="calendar"   element={<Calendar />} />
             <Route path="chat"       element={<TeamChat />} />
+            <Route path="director"   element={<DirectorMode />} />
             <Route path="stats"      element={<Stats />} />
             <Route path="users"      element={<Users />} />
             <Route path="profile"    element={<Profile />} />

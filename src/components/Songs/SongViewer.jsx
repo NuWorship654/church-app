@@ -7,6 +7,11 @@ import { useSwipe } from '../../hooks/useSwipe'
 import SongControls from './SongControls'
 import LyricsView from './LyricsView'
 import PresentationMode from './PresentationMode'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import 'dayjs/locale/es'
+dayjs.extend(relativeTime)
+dayjs.locale('es')
 
 export default function SongViewer({
   song, onNext, onPrev, hasNext, hasPrev,
@@ -15,25 +20,25 @@ export default function SongViewer({
   const { user, isAdmin, isWorshipLeader } = useAuth()
   const isLeader = isAdmin || isWorshipLeader
 
-  const [semitones,       setSemitones]       = useState(0)
-  const [fontSize,        setFontSize]        = useState(15)
-  const [isFav,           setIsFav]           = useState(false)
-  const [bpmInput,        setBpmInput]        = useState(song?.bpm || 0)
-  const [bpm,             setBpm]             = useState(song?.bpm || 0)
-  const [metronome,       setMetronome]       = useState(false)
-  const [beat,            setBeat]            = useState(false)
-  const [note,            setNote]            = useState('')
-  const [savingNote,      setSavingNote]      = useState(false)
-  const [noteSaved,       setNoteSaved]       = useState(false)
-  const [keyHistory,      setKeyHistory]      = useState([])
-  const [activeTab,       setActiveTab]       = useState('chords')
-  const [fullscreen,      setFullscreen]      = useState(false)
-  const [showPresentation,setShowPresentation]= useState(false)
-  const [isMobile,        setIsMobile]        = useState(window.innerWidth <= 768)
-  const [syncEnabled,     setSyncEnabled]     = useState(false)
-  const [connectedUsers,  setConnectedUsers]  = useState(0)
-  const [savingPreferred, setSavingPreferred] = useState(false)
-  const [preferredSaved,  setPreferredSaved]  = useState(false)
+  const [semitones,        setSemitones]        = useState(0)
+  const [fontSize,         setFontSize]         = useState(15)
+  const [isFav,            setIsFav]            = useState(false)
+  const [bpmInput,         setBpmInput]         = useState(song?.bpm || 0)
+  const [bpm,              setBpm]              = useState(song?.bpm || 0)
+  const [metronome,        setMetronome]        = useState(false)
+  const [beat,             setBeat]             = useState(false)
+  const [note,             setNote]             = useState('')
+  const [savingNote,       setSavingNote]       = useState(false)
+  const [noteSaved,        setNoteSaved]        = useState(false)
+  const [keyHistory,       setKeyHistory]       = useState([])
+  const [activeTab,        setActiveTab]        = useState('chords')
+  const [fullscreen,       setFullscreen]       = useState(false)
+  const [showPresentation, setShowPresentation] = useState(false)
+  const [isMobile,         setIsMobile]         = useState(window.innerWidth <= 768)
+  const [syncEnabled,      setSyncEnabled]      = useState(false)
+  const [connectedUsers,   setConnectedUsers]   = useState(0)
+  const [savingPreferred,  setSavingPreferred]  = useState(false)
+  const [preferredSaved,   setPreferredSaved]   = useState(false)
   const metRef     = useRef(null)
   const audioCtx   = useRef(null)
   const channelRef = useRef(null)
@@ -44,7 +49,7 @@ export default function SongViewer({
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // ── Sync en tiempo real ──────────────────────────────────────────────────
+  // ── Sync en tiempo real ────────────────────────────────────────────────────
   useEffect(() => {
     if (!syncEnabled || !song?.id) return
     const ch = supabase.channel(`song-key-${song.id}`, {
@@ -82,28 +87,21 @@ export default function SongViewer({
     }
   }
 
-  // ── Cargar tono al cambiar canción ───────────────────────────────────────
+  // ── Cargar tono al cambiar canción ─────────────────────────────────────────
   useEffect(() => {
     if (!song?.id || !song?.original_key) return
-
     const loadKey = async () => {
-      // 1. Tono preferido por líder (semitones guardados)
       if (
         song.preferred_semitones !== undefined &&
         song.preferred_semitones !== null &&
         song.preferred_semitones !== 0
       ) {
-        setSemitones(song.preferred_semitones)
-        return
+        setSemitones(song.preferred_semitones); return
       }
-
-      // 2. Tono preferido por clave (ej. "C#m")
       if (song.preferred_key && song.preferred_key !== song.original_key) {
         const diff = semitonesFromTo(song.original_key, song.preferred_key)
         if (diff !== 0) { setSemitones(diff); return }
       }
-
-      // 3. Último tono personal usado
       const savedKey = await getLastKey(song.id)
       if (savedKey && savedKey !== song.original_key) {
         const diff = semitonesFromTo(song.original_key, savedKey)
@@ -112,11 +110,10 @@ export default function SongViewer({
         setSemitones(0)
       }
     }
-
     loadKey()
   }, [song?.id])
 
-  // ── Cargar datos al cambiar canción ──────────────────────────────────────
+  // ── Cargar datos al cambiar canción ────────────────────────────────────────
   useEffect(() => {
     if (!user || !song) return
 
@@ -129,9 +126,9 @@ export default function SongViewer({
       .then(({ data }) => setNote(data?.[0]?.content || ''))
 
     supabase.from('song_key_history')
-      .select('key_used, used_at, services(title)')
+      .select('key_used, used_at, services(title, date)')
       .eq('song_id', song.id)
-      .order('used_at', { ascending: false }).limit(10)
+      .order('used_at', { ascending: false }).limit(15)
       .then(({ data }) => setKeyHistory(data || []))
 
     setBpm(song.bpm || 0)
@@ -141,7 +138,7 @@ export default function SongViewer({
     setPreferredSaved(false)
   }, [song?.id, user?.id])
 
-  // ── Metrónomo ────────────────────────────────────────────────────────────
+  // ── Metrónomo ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (metronome && bpm > 0) {
       const interval = (60 / bpm) * 1000
@@ -193,7 +190,7 @@ export default function SongViewer({
     const useFlats = semitones < 0 || shouldUseFlats(song.original_key)
     const newKey   = transposeKey(song.original_key, semitones, useFlats)
     await supabase.from('songs').update({
-      preferred_key:      newKey,
+      preferred_key:       newKey,
       preferred_semitones: semitones
     }).eq('id', song.id)
     setSavingPreferred(false); setPreferredSaved(true)
@@ -203,13 +200,12 @@ export default function SongViewer({
   const clearPreferredKey = async () => {
     if (!isLeader || !song?.id) return
     await supabase.from('songs').update({
-      preferred_key:      null,
-      preferred_semitones: 0
+      preferred_key: null, preferred_semitones: 0
     }).eq('id', song.id)
     setSemitones(0); setPreferredSaved(false)
   }
 
-  // ── Valores derivados ────────────────────────────────────────────────────
+  // ── Valores derivados ──────────────────────────────────────────────────────
   const useFlats   = semitones < 0 || shouldUseFlats(song?.original_key)
   const currentKey = song?.original_key
     ? transposeKey(song.original_key, semitones, useFlats)
@@ -229,7 +225,7 @@ export default function SongViewer({
     onSwipeRight: hasPrev ? onPrev : null
   })
 
-  // ── Badge tono preferido ─────────────────────────────────────────────────
+  // ── Badge tono preferido ───────────────────────────────────────────────────
   const PreferredKeyBtn = () => {
     if (!isLeader) {
       if (!isPreferredActive) return null
@@ -239,9 +235,7 @@ export default function SongViewer({
         </div>
       )
     }
-
     if (semitones === 0 && !isPreferredActive) return null
-
     return (
       <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
         {isPreferredActive && (
@@ -277,19 +271,115 @@ export default function SongViewer({
 
   if (!song) return null
 
-  // ── Modo Presentación ────────────────────────────────────────────────────
+  // ── Presentación ───────────────────────────────────────────────────────────
   if (showPresentation) {
     return (
       <PresentationMode
-        song={song}
-        currentKey={currentKey}
+        song={song} currentKey={currentKey}
         text={chordsText || lyricsText}
         onClose={() => setShowPresentation(false)}
       />
     )
   }
 
-  // ── FULLSCREEN ───────────────────────────────────────────────────────────
+  // ── Historial mejorado ─────────────────────────────────────────────────────
+  const HistorialTab = () => (
+    <div style={{ padding: isMobile ? '14px 12px' : '20px 28px' }}>
+      <p style={{ color: '#64748b', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 14px' }}>
+        HISTORIAL — {keyHistory.length} registro{keyHistory.length !== 1 ? 's' : ''}
+      </p>
+
+      {keyHistory.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '30px', color: '#475569' }}>
+          <div style={{ fontSize: '28px', marginBottom: '8px', opacity: 0.3 }}>⏱</div>
+          <p style={{ margin: 0, fontSize: '13px' }}>Esta canción no se ha cantado en ningún servicio aún</p>
+        </div>
+      ) : (
+        <>
+          {/* Resumen estadístico */}
+          {(() => {
+            const keyCounts = keyHistory.reduce((acc, h) => {
+              acc[h.key_used] = (acc[h.key_used] || 0) + 1
+              return acc
+            }, {})
+            const mostUsed = Object.entries(keyCounts).sort((a, b) => b[1] - a[1])[0]
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px' }}>
+                <div style={{ textAlign: 'center', padding: '10px 6px', borderRadius: '10px', background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.15)' }}>
+                  <p style={{ margin: 0, fontFamily: 'Orbitron, sans-serif', fontSize: '18px', fontWeight: '900', color: '#00d4ff' }}>{mostUsed?.[0] || '?'}</p>
+                  <p style={{ margin: 0, color: '#475569', fontSize: '9px', letterSpacing: '1px', marginTop: '2px' }}>TONO MÁS USADO</p>
+                </div>
+                <div style={{ textAlign: 'center', padding: '10px 6px', borderRadius: '10px', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)' }}>
+                  <p style={{ margin: 0, fontFamily: 'Orbitron, sans-serif', fontSize: '18px', fontWeight: '900', color: '#a78bfa' }}>{keyHistory.length}</p>
+                  <p style={{ margin: 0, color: '#475569', fontSize: '9px', letterSpacing: '1px', marginTop: '2px' }}>SERVICIOS</p>
+                </div>
+                <div style={{ textAlign: 'center', padding: '10px 6px', borderRadius: '10px', background: 'rgba(6,255,165,0.06)', border: '1px solid rgba(6,255,165,0.15)' }}>
+                  <p style={{ margin: 0, fontFamily: 'Orbitron, sans-serif', fontSize: '16px', fontWeight: '900', color: '#06ffa5' }}>{Object.keys(keyCounts).length}</p>
+                  <p style={{ margin: 0, color: '#475569', fontSize: '9px', letterSpacing: '1px', marginTop: '2px' }}>TONOS USADOS</p>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Lista de servicios */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+            {keyHistory.map((h, i) => {
+              const isRecent  = i === 0
+              const daysAgo   = dayjs().diff(dayjs(h.used_at), 'day')
+              const timeLabel = daysAgo === 0
+                ? 'Hoy'
+                : daysAgo === 1
+                  ? 'Ayer'
+                  : daysAgo < 30
+                    ? `Hace ${daysAgo} días`
+                    : dayjs(h.used_at).fromNow()
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '11px 14px', borderRadius: '10px',
+                  background: isRecent ? 'rgba(0,212,255,0.06)' : 'rgba(0,0,0,0.2)',
+                  border: '1px solid ' + (isRecent ? 'rgba(0,212,255,0.2)' : 'rgba(0,212,255,0.05)'),
+                  gap: '10px', transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,212,255,0.2)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = isRecent ? 'rgba(0,212,255,0.2)' : 'rgba(0,212,255,0.05)'}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px', flexWrap: 'wrap' }}>
+                      {isRecent && (
+                        <span style={{ fontSize: '8px', padding: '1px 5px', borderRadius: '10px', background: 'rgba(6,255,165,0.15)', color: '#06ffa5', fontWeight: '700', flexShrink: 0 }}>ÚLTIMO</span>
+                      )}
+                      <p style={{ margin: 0, fontSize: '13px', color: '#e2e8f0', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {h.services?.title || 'Servicio'}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ color: '#64748b', fontSize: '10px' }}>
+                        {dayjs(h.used_at).format('DD MMM YYYY')}
+                      </span>
+                      <span style={{ color: '#334155', fontSize: '9px' }}>·</span>
+                      <span style={{ fontSize: '10px', color: daysAgo < 7 ? '#06ffa5' : '#475569' }}>
+                        {timeLabel}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '18px', fontWeight: '900', color: '#00d4ff', display: 'block' }}>
+                      {h.key_used}
+                    </span>
+                    {h.key_used !== song?.original_key && (
+                      <span style={{ fontSize: '8px', color: '#334155' }}>orig: {song?.original_key}</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+
+  // ── FULLSCREEN ─────────────────────────────────────────────────────────────
   if (fullscreen) {
     return (
       <div style={{
@@ -343,15 +433,19 @@ export default function SongViewer({
 
         {/* Tabs fullscreen */}
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(0,212,255,0.1)', background: 'rgba(0,0,0,0.2)', flexShrink: 0, overflowX: 'auto' }}>
-          {['chords', 'notes', 'history'].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+          {[
+            { id: 'chords',  label: '♪ Acordes' },
+            { id: 'notes',   label: '✎ Notas' },
+            { id: 'history', label: '⏱ Historial' },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
               padding: '7px 12px', background: 'transparent', border: 'none',
-              borderBottom: '2px solid ' + (activeTab === tab ? '#00d4ff' : 'transparent'),
-              color: activeTab === tab ? '#00d4ff' : '#64748b',
+              borderBottom: '2px solid ' + (activeTab === tab.id ? '#00d4ff' : 'transparent'),
+              color: activeTab === tab.id ? '#00d4ff' : '#64748b',
               cursor: 'pointer', fontSize: '10px', fontWeight: '600',
-              letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap'
+              letterSpacing: '1px', whiteSpace: 'nowrap'
             }}>
-              {tab === 'chords' ? '♪ Acordes' : tab === 'notes' ? '✎ Notas' : '⏱ Historial'}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -365,7 +459,6 @@ export default function SongViewer({
               padding={isMobile ? '14px 12px' : '20px 36px'}
             />
           )}
-
           {activeTab === 'notes' && (
             <div style={{ padding: isMobile ? '14px 12px' : '20px 28px' }}>
               <p style={{ color: '#64748b', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 10px' }}>
@@ -386,48 +479,18 @@ export default function SongViewer({
               </button>
             </div>
           )}
-
-          {activeTab === 'history' && (
-            <div style={{ padding: isMobile ? '14px 12px' : '20px 28px' }}>
-              <p style={{ color: '#64748b', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 10px' }}>
-                HISTORIAL DE TONOS
-              </p>
-              {keyHistory.length === 0 ? (
-                <p style={{ color: '#475569', fontSize: '13px' }}>No hay historial aún.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {keyHistory.map((h, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(0,212,255,0.08)', gap: '8px' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <p style={{ margin: '0 0 2px', fontSize: '13px', color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {h.services?.title || 'Servicio'}
-                        </p>
-                        <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
-                          {new Date(h.used_at).toLocaleDateString('es-MX')}
-                        </p>
-                      </div>
-                      <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '16px', fontWeight: '900', color: '#00d4ff', flexShrink: 0 }}>
-                        {h.key_used}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {activeTab === 'history' && <HistorialTab />}
         </div>
       </div>
     )
   }
 
-  // ── VISTA MÓVIL EXPANDIDA ────────────────────────────────────────────────
+  // ── VISTA MÓVIL / autoExpand ───────────────────────────────────────────────
   if (autoExpand) {
     return (
       <div {...swipeHandlers} style={{ overflowX: 'hidden' }}>
         <div style={{ background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)', borderRadius: '12px', padding: '14px', marginBottom: '14px' }}>
-
-          {/* Info + acciones */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#e2e8f0', margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {song.title}
@@ -459,7 +522,6 @@ export default function SongViewer({
             </div>
           </div>
 
-          {/* Badge tono preferido */}
           <div style={{ marginBottom: '10px' }}>
             <PreferredKeyBtn />
           </div>
@@ -467,7 +529,6 @@ export default function SongViewer({
           <SongControls {...controlsProps} compact={false} />
         </div>
 
-        {/* Letra */}
         <div style={{ paddingBottom: '50px', overflowX: 'hidden' }}>
           <LyricsView
             chordsText={chordsText} lyricsText={lyricsText}
@@ -484,11 +545,10 @@ export default function SongViewer({
     )
   }
 
-  // ── VISTA COMPACTA DESKTOP ────────────────────────────────────────────────
+  // ── VISTA DESKTOP ──────────────────────────────────────────────────────────
   return (
     <div style={{ background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)', borderRadius: '12px', padding: '18px', animation: 'fadeInUp 0.3s ease forwards', overflow: 'hidden' }}>
 
-      {/* Info + acciones */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '14px', gap: '8px', flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '15px', color: '#e2e8f0', margin: '0 0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -530,11 +590,53 @@ export default function SongViewer({
         <SongControls {...controlsProps} compact={true} />
       </div>
 
-      {/* Letra */}
-      <LyricsView
-        chordsText={chordsText} lyricsText={lyricsText}
-        fontSize={fontSize} autoScroll={false} padding="0"
-      />
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '12px', overflowX: 'auto' }}>
+        {[
+          { id: 'chords',  label: '♪ ACORDES' },
+          { id: 'notes',   label: '✎ NOTAS' },
+          { id: 'history', label: '⏱ HISTORIAL' },
+        ].map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+            padding: '5px 10px', borderRadius: '7px', cursor: 'pointer',
+            background: activeTab === tab.id ? 'rgba(0,212,255,0.1)' : 'transparent',
+            border: '1px solid ' + (activeTab === tab.id ? 'rgba(0,212,255,0.3)' : 'transparent'),
+            color: activeTab === tab.id ? '#00d4ff' : '#64748b',
+            fontSize: '10px', fontWeight: '600', letterSpacing: '1px',
+            transition: 'all 0.2s', whiteSpace: 'nowrap'
+          }}>{tab.label}</button>
+        ))}
+      </div>
+
+      {/* Contenido tabs */}
+      {activeTab === 'chords' && (
+        <LyricsView
+          chordsText={chordsText} lyricsText={lyricsText}
+          fontSize={fontSize} autoScroll={false} padding="0"
+        />
+      )}
+
+      {activeTab === 'notes' && (
+        <div>
+          <p style={{ color: '#64748b', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 10px' }}>
+            MIS NOTAS PERSONALES
+          </p>
+          <textarea value={note} onChange={e => setNote(e.target.value)} rows={6}
+            placeholder="Escribe tus notas... (capos, acordes alternativos, recordatorios)"
+            className="input-field" style={{ resize: 'vertical', fontSize: '13px', lineHeight: '1.6' }}
+          />
+          <button onClick={saveNote} disabled={savingNote} style={{
+            marginTop: '8px', padding: '8px 18px', borderRadius: '8px', cursor: 'pointer',
+            background: noteSaved ? 'rgba(6,255,165,0.2)' : 'linear-gradient(135deg, #00d4ff, #7c3aed)',
+            border: noteSaved ? '1px solid rgba(6,255,165,0.4)' : 'none',
+            color: noteSaved ? '#06ffa5' : 'white', fontSize: '12px', fontWeight: '600'
+          }}>
+            {savingNote ? 'GUARDANDO...' : noteSaved ? '✓ GUARDADO' : 'GUARDAR NOTAS'}
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'history' && <HistorialTab />}
     </div>
   )
 }
