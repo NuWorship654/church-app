@@ -31,22 +31,18 @@ function SortableTab({ ss, index, isActive, onClick, canEdit, onRemove }) {
           fontSize: '8px', fontWeight: '700', color: isActive ? '#00d4ff' : '#64748b'
         }}>{index + 1}</span>
         <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
-          <p style={{
-            margin: 0, fontSize: '11px', fontWeight: '600',
-            color: isActive ? '#e2e8f0' : '#94a3b8',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px'
-          }}>{ss.songs?.title}</p>
+          <p style={{ margin: 0, fontSize: '11px', fontWeight: '600', color: isActive ? '#e2e8f0' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>
+            {ss.songs?.title}
+          </p>
           <p style={{ margin: 0, fontSize: '9px', color: isActive ? '#00d4ff' : '#475569' }}>
             {ss.songs?.preferred_key || ss.songs?.original_key || '?'}
           </p>
         </div>
         {canEdit && (
-          <span onClick={e => { e.stopPropagation(); onRemove() }} style={{
-            color: '#475569', cursor: 'pointer', fontSize: '11px',
-            padding: '2px 3px', transition: 'color 0.2s', flexShrink: 0
-          }}
-          onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-          onMouseLeave={e => e.currentTarget.style.color = '#475569'}>×</span>
+          <span onClick={e => { e.stopPropagation(); onRemove() }}
+            style={{ color: '#475569', cursor: 'pointer', fontSize: '11px', padding: '2px 3px', transition: 'color 0.2s', flexShrink: 0 }}
+            onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+            onMouseLeave={e => e.currentTarget.style.color = '#475569'}>×</span>
         )}
       </button>
     </div>
@@ -55,19 +51,20 @@ function SortableTab({ ss, index, isActive, onClick, canEdit, onRemove }) {
 
 export default function ServiceDetail({ service, canEdit, isPastor, onRefresh }) {
   const { user } = useAuth()
-  const [songs,        setSongs]        = useState([])
-  const [allSongs,     setAllSongs]     = useState([])
-  const [activeSongIndex, setActiveSongIndex] = useState(0)
-  const [view,         setView]         = useState('songs')
-  const [showAddSong,  setShowAddSong]  = useState(false)
-  const [search,       setSearch]       = useState('')
-  const [chatMessages, setChatMessages] = useState([])
-  const [newMessage,   setNewMessage]   = useState('')
-  const [comments,     setComments]     = useState([])
-  const [newComment,   setNewComment]   = useState('')
-  const [isMobile,     setIsMobile]     = useState(window.innerWidth <= 768)
-  const [sendingMsg,   setSendingMsg]   = useState(false)
+  const [songs,          setSongs]          = useState([])
+  const [allSongs,       setAllSongs]       = useState([])
+  const [activeSongIndex,setActiveSongIndex]= useState(0)
+  const [view,           setView]           = useState('songs')
+  const [showAddSong,    setShowAddSong]    = useState(false)
+  const [search,         setSearch]         = useState('')
+  const [chatMessages,   setChatMessages]   = useState([])
+  const [newMessage,     setNewMessage]     = useState('')
+  const [comments,       setComments]       = useState([])
+  const [newComment,     setNewComment]     = useState('')
+  const [isMobile,       setIsMobile]       = useState(window.innerWidth <= 768)
+  const [sendingMsg,     setSendingMsg]     = useState(false)
   const [sendingComment, setSendingComment] = useState(false)
+  const [showEditForm,   setShowEditForm]   = useState(false)
   const chatEndRef = useRef(null)
 
   useEffect(() => {
@@ -196,6 +193,8 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
       text += `${i + 1}. ${ss.songs?.title || ''} - ${key}\n`
     })
     navigator.clipboard.writeText(text)
+      .then(() => alert('Lista copiada al portapapeles'))
+      .catch(() => {})
   }
 
   const availableSongs = allSongs.filter(s =>
@@ -204,10 +203,10 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
   )
 
   const activeSong = songs[activeSongIndex]?.songs || null
-  const hasPrev = activeSongIndex > 0
-  const hasNext = activeSongIndex < songs.length - 1
-  const goNext  = () => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))
-  const goPrev  = () => setActiveSongIndex(i => Math.max(0, i - 1))
+  const hasPrev    = activeSongIndex > 0
+  const hasNext    = activeSongIndex < songs.length - 1
+  const goNext     = () => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))
+  const goPrev     = () => setActiveSongIndex(i => Math.max(0, i - 1))
 
   const isToday = dayjs(service.date).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD')
   const isPast  = dayjs(service.date).isBefore(dayjs())
@@ -224,28 +223,18 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
   )
 
   return (
-    <div style={{
-      background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)',
-      borderRadius: '14px', overflow: 'hidden', animation: 'fadeInUp 0.3s ease forwards'
-    }}>
+    <div style={{ background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(0,212,255,0.2)', borderRadius: '14px', overflow: 'hidden', animation: 'fadeInUp 0.3s ease forwards' }}>
 
-      {/* Header */}
-      <div style={{
-        background: 'linear-gradient(135deg, rgba(0,212,255,0.08), rgba(124,58,237,0.06))',
-        borderBottom: '1px solid rgba(0,212,255,0.1)', padding: '14px 16px'
-      }}>
+      {/* ── Header ── */}
+      <div style={{ background: 'linear-gradient(135deg, rgba(0,212,255,0.08), rgba(124,58,237,0.06))', borderBottom: '1px solid rgba(0,212,255,0.1)', padding: '14px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '4px', flexWrap: 'wrap' }}>
               <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#e2e8f0', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {service.title}
               </h2>
-              {isToday && (
-                <span style={{ fontSize: '9px', padding: '1px 7px', borderRadius: '20px', background: 'rgba(6,255,165,0.2)', border: '1px solid rgba(6,255,165,0.4)', color: '#06ffa5', fontWeight: '700', flexShrink: 0 }}>HOY</span>
-              )}
-              {isPast && !isToday && (
-                <span style={{ fontSize: '9px', padding: '1px 7px', borderRadius: '20px', background: 'rgba(100,116,139,0.15)', border: '1px solid rgba(100,116,139,0.2)', color: '#64748b', fontWeight: '700', flexShrink: 0 }}>PASADO</span>
-              )}
+              {isToday && <span style={{ fontSize: '9px', padding: '1px 7px', borderRadius: '20px', background: 'rgba(6,255,165,0.2)', border: '1px solid rgba(6,255,165,0.4)', color: '#06ffa5', fontWeight: '700', flexShrink: 0 }}>HOY</span>}
+              {isPast && !isToday && <span style={{ fontSize: '9px', padding: '1px 7px', borderRadius: '20px', background: 'rgba(100,116,139,0.15)', border: '1px solid rgba(100,116,139,0.2)', color: '#64748b', fontWeight: '700', flexShrink: 0 }}>PASADO</span>}
             </div>
             <p style={{ color: '#00d4ff', fontSize: '11px', margin: '0 0 2px', textTransform: 'capitalize' }}>
               📅 {dayjs(service.date).format('dddd DD [de] MMMM · HH:mm')}
@@ -260,7 +249,12 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
 
           {/* Acciones */}
           <div style={{ display: 'flex', gap: '5px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button onClick={shareWhatsApp} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.25)', color: '#25d366', fontSize: '10px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+            {canEdit && (
+              <button onClick={() => setShowEditForm(true)} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)', color: '#a78bfa', fontSize: '10px', fontWeight: '600' }}>
+                ✎ EDITAR
+              </button>
+            )}
+            <button onClick={shareWhatsApp} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.25)', color: '#25d366', fontSize: '10px', fontWeight: '600' }}>
               WhatsApp
             </button>
             <button onClick={copyList} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(6,255,165,0.08)', border: '1px solid rgba(6,255,165,0.25)', color: '#06ffa5', fontSize: '10px', fontWeight: '600' }}>
@@ -273,7 +267,7 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* ── Tabs ── */}
       <div style={{ display: 'flex', gap: '4px', padding: '8px 14px', borderBottom: '1px solid rgba(0,212,255,0.08)', background: 'rgba(0,0,0,0.15)', overflowX: 'auto' }}>
         <TabBtn id="songs"    label={`♪ CANCIONES${songs.length ? ' (' + songs.length + ')' : ''}`} />
         <TabBtn id="chat"     label={`💬 CHAT${chatMessages.length ? ' (' + chatMessages.length + ')' : ''}`} />
@@ -298,14 +292,9 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
                       />
                     ))}
                     {canEdit && (
-                      <button onClick={() => setShowAddSong(!showAddSong)} style={{
-                        flexShrink: 0, width: '36px', height: '36px', borderRadius: '8px', cursor: 'pointer',
-                        background: showAddSong ? 'rgba(6,255,165,0.1)' : 'rgba(0,0,0,0.2)',
-                        border: '1px solid ' + (showAddSong ? 'rgba(6,255,165,0.4)' : 'rgba(255,255,255,0.1)'),
-                        color: showAddSong ? '#06ffa5' : '#64748b', fontSize: '18px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        alignSelf: 'center', transition: 'all 0.2s'
-                      }}>+</button>
+                      <button onClick={() => setShowAddSong(!showAddSong)} style={{ flexShrink: 0, width: '36px', height: '36px', borderRadius: '8px', cursor: 'pointer', background: showAddSong ? 'rgba(6,255,165,0.1)' : 'rgba(0,0,0,0.2)', border: '1px solid ' + (showAddSong ? 'rgba(6,255,165,0.4)' : 'rgba(255,255,255,0.1)'), color: showAddSong ? '#06ffa5' : '#64748b', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', transition: 'all 0.2s' }}>
+                        +
+                      </button>
                     )}
                   </div>
                 </SortableContext>
@@ -320,14 +309,9 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
                   className="input-field" style={{ marginBottom: '8px', fontSize: '13px' }} />
                 <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                   {availableSongs.map(song => (
-                    <button key={song.id} onClick={() => addSong(song.id)} style={{
-                      textAlign: 'left', padding: '9px 12px', borderRadius: '7px',
-                      background: 'transparent', border: '1px solid transparent',
-                      color: '#e2e8f0', cursor: 'pointer', fontSize: '13px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', transition: 'all 0.15s'
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(6,255,165,0.08)'; e.currentTarget.style.borderColor = 'rgba(6,255,165,0.2)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}>
+                    <button key={song.id} onClick={() => addSong(song.id)} style={{ textAlign: 'left', padding: '9px 12px', borderRadius: '7px', background: 'transparent', border: '1px solid transparent', color: '#e2e8f0', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', transition: 'all 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(6,255,165,0.08)'; e.currentTarget.style.borderColor = 'rgba(6,255,165,0.2)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</span>
                       <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '20px', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa', flexShrink: 0 }}>
                         {song.preferred_key || song.original_key}
@@ -378,21 +362,11 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
                   return (
                     <div key={m.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
                       {!isMe && (
-                        <div style={{
-                          width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0,
-                          background: 'rgba(0,212,255,0.15)', border: '1px solid rgba(0,212,255,0.2)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '10px', fontWeight: '700', color: '#00d4ff', marginRight: '6px', alignSelf: 'flex-end'
-                        }}>
+                        <div style={{ width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0, background: 'rgba(0,212,255,0.15)', border: '1px solid rgba(0,212,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '700', color: '#00d4ff', marginRight: '6px', alignSelf: 'flex-end' }}>
                           {(m.profiles?.full_name || '?')[0].toUpperCase()}
                         </div>
                       )}
-                      <div style={{
-                        maxWidth: '75%', padding: '8px 11px',
-                        borderRadius: isMe ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                        background: isMe ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.05)',
-                        border: '1px solid ' + (isMe ? 'rgba(0,212,255,0.25)' : 'rgba(255,255,255,0.08)')
-                      }}>
+                      <div style={{ maxWidth: '75%', padding: '8px 11px', borderRadius: isMe ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: isMe ? 'rgba(0,212,255,0.12)' : 'rgba(255,255,255,0.05)', border: '1px solid ' + (isMe ? 'rgba(0,212,255,0.25)' : 'rgba(255,255,255,0.08)') }}>
                         {!isMe && <p style={{ margin: '0 0 3px', fontSize: '10px', fontWeight: '700', color: '#00d4ff' }}>{m.profiles?.full_name}</p>}
                         <p style={{ margin: '0 0 3px', fontSize: '13px', color: '#e2e8f0', lineHeight: '1.4', wordBreak: 'break-word' }}>{m.message}</p>
                         <p style={{ margin: 0, fontSize: '9px', color: '#334155', textAlign: isMe ? 'right' : 'left' }}>{dayjs(m.created_at).format('HH:mm')}</p>
@@ -408,12 +382,9 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                 placeholder="Escribe un mensaje... (Enter para enviar)"
                 className="input-field" style={{ flex: 1, fontSize: '13px' }} />
-              <button onClick={sendMessage} disabled={sendingMsg || !newMessage.trim()} style={{
-                padding: '0 14px', borderRadius: '8px', cursor: 'pointer',
-                background: !newMessage.trim() ? 'rgba(0,212,255,0.1)' : 'linear-gradient(135deg, #00d4ff, #7c3aed)',
-                border: 'none', color: 'white', fontSize: '13px', fontWeight: '600',
-                opacity: !newMessage.trim() ? 0.5 : 1, transition: 'all 0.2s', flexShrink: 0
-              }}>Enviar</button>
+              <button onClick={sendMessage} disabled={sendingMsg || !newMessage.trim()} style={{ padding: '0 14px', borderRadius: '8px', cursor: 'pointer', background: !newMessage.trim() ? 'rgba(0,212,255,0.1)' : 'linear-gradient(135deg, #00d4ff, #7c3aed)', border: 'none', color: 'white', fontSize: '13px', fontWeight: '600', opacity: !newMessage.trim() ? 0.5 : 1, flexShrink: 0 }}>
+                Enviar
+              </button>
             </div>
           </div>
         )}
@@ -450,16 +421,68 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
                   onKeyDown={e => e.key === 'Enter' && addComment()}
                   placeholder="Escribe una nota..."
                   className="input-field" style={{ flex: 1, fontSize: '13px' }} />
-                <button onClick={addComment} disabled={sendingComment || !newComment.trim()} style={{
-                  padding: '0 14px', borderRadius: '8px', cursor: 'pointer',
-                  background: !newComment.trim() ? 'rgba(0,212,255,0.1)' : 'linear-gradient(135deg, #00d4ff, #7c3aed)',
-                  border: 'none', color: 'white', fontSize: '13px', fontWeight: '600',
-                  opacity: !newComment.trim() ? 0.5 : 1, flexShrink: 0
-                }}>Enviar</button>
+                <button onClick={addComment} disabled={sendingComment || !newComment.trim()} style={{ padding: '0 14px', borderRadius: '8px', cursor: 'pointer', background: !newComment.trim() ? 'rgba(0,212,255,0.1)' : 'linear-gradient(135deg, #00d4ff, #7c3aed)', border: 'none', color: 'white', fontSize: '13px', fontWeight: '600', opacity: !newComment.trim() ? 0.5 : 1, flexShrink: 0 }}>
+                  Enviar
+                </button>
               </div>
             )}
           </div>
         )}
+      </div>
+
+      {/* Modal editar servicio inline */}
+      {showEditForm && canEdit && (
+        <EditServiceModal service={service} onClose={() => setShowEditForm(false)} onSaved={() => { setShowEditForm(false); onRefresh && onRefresh() }} />
+      )}
+    </div>
+  )
+}
+
+function EditServiceModal({ service, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    title:       service.title       || '',
+    date:        service.date ? dayjs(service.date).format('YYYY-MM-DDTHH:mm') : '',
+    location:    service.location    || '',
+    description: service.description || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSubmit = async e => {
+    e.preventDefault(); setSaving(true)
+    await supabase.from('services').update({ ...form, updated_at: new Date() }).eq('id', service.id)
+    setSaving(false); onSaved()
+  }
+
+  const L = { display: 'block', color: '#94a3b8', fontSize: '11px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 50, padding: '16px', backdropFilter: 'blur(6px)', overflowY: 'auto' }}>
+      <div style={{ background: 'linear-gradient(135deg, #0d1b2a, #0a1628)', border: '1px solid rgba(0,212,255,0.25)', borderRadius: '20px', width: '100%', maxWidth: '500px', animation: 'fadeInUp 0.3s ease forwards', margin: 'auto', overflow: 'hidden' }}>
+        <div style={{ background: 'linear-gradient(135deg, rgba(0,212,255,0.12), rgba(124,58,237,0.12))', borderBottom: '1px solid rgba(0,212,255,0.15)', padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: 'linear-gradient(135deg, rgba(0,212,255,0.2), rgba(124,58,237,0.2))', border: '1px solid rgba(0,212,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>📅</div>
+            <div>
+              <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '13px', color: '#00d4ff', margin: 0 }}>EDITAR SERVICIO</h2>
+              <p style={{ color: '#475569', fontSize: '11px', margin: 0 }}>Modifica los datos del servicio</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontSize: '18px', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        </div>
+        <div style={{ padding: '20px' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div><label style={L}>Título *</label><input value={form.title} onChange={e => set('title', e.target.value)} required className="input-field" placeholder="Ej: Servicio dominical" /></div>
+            <div><label style={L}>📅 Fecha y hora *</label><input type="datetime-local" value={form.date} onChange={e => set('date', e.target.value)} required className="input-field" /></div>
+            <div><label style={L}>📍 Lugar</label><input value={form.location} onChange={e => set('location', e.target.value)} className="input-field" placeholder="Ej: Templo principal" /></div>
+            <div><label style={L}>📝 Descripción</label><textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3} className="input-field" style={{ resize: 'vertical', lineHeight: '1.6' }} placeholder="Tema, notas, detalles..." /></div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button type="button" onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(100,116,139,0.3)', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>CANCELAR</button>
+              <button type="submit" disabled={saving} style={{ flex: 2, padding: '11px', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', background: saving ? 'rgba(0,212,255,0.1)' : 'linear-gradient(135deg, #00d4ff, #7c3aed)', border: saving ? '1px solid rgba(0,212,255,0.2)' : 'none', color: saving ? '#00d4ff' : 'white', fontSize: '13px', fontWeight: '700' }}>
+                {saving ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   )

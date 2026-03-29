@@ -10,6 +10,7 @@ import Stats from './pages/Stats'
 import Users from './pages/Users'
 import Profile from './pages/Profile'
 import Secuencias from './pages/Secuencias'
+import Calendar from './pages/Calendar'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -41,13 +42,14 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index element={<Dashboard />} />
-            <Route path="songs" element={<Songs />} />
-            <Route path="services" element={<Services />} />
+            <Route path="songs"      element={<Songs />} />
+            <Route path="services"   element={<Services />} />
             <Route path="rehearsals" element={<Rehearsals />} />
             <Route path="secuencias" element={<Secuencias />} />
-            <Route path="stats" element={<Stats />} />
-            <Route path="users" element={<Users />} />
-            <Route path="profile" element={<Profile />} />
+            <Route path="calendar"   element={<Calendar />} />
+            <Route path="stats"      element={<Stats />} />
+            <Route path="users"      element={<Users />} />
+            <Route path="profile"    element={<Profile />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
