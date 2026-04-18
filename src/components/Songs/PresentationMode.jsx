@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { isChordLine } from '../../lib/transposer'
-import { parseSections } from './LyricsView'
-
+import { parseSections } from '../../lib/lyrics'
 export default function PresentationMode({ song, currentKey, text, onClose }) {
   const [presSection, setPresSection] = useState(0)
   const [fontSize,    setFontSize]    = useState(36)
