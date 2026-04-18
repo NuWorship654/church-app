@@ -32,20 +32,13 @@ export const parseSections = (text) => {
       if (current) sections.push(current)
       const title = match[1]
       const key   = title.toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar acentos
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/\s+\d+$/, '').trim()
-      current = {
-        title,
-        key,
-        color: SECTION_COLORS[key] || '#64748b',
-        lines: []
-      }
+      current = { title, key, color: SECTION_COLORS[key] || '#64748b', lines: [] }
     } else if (current) {
       current.lines.push(line)
     } else {
-      if (!sections.length) {
-        sections.push({ title: null, key: 'song', color: '#64748b', lines: [] })
-      }
+      if (!sections.length) sections.push({ title: null, key: 'song', color: '#64748b', lines: [] })
       sections[sections.length - 1].lines.push(line)
     }
   }
@@ -55,128 +48,194 @@ export const parseSections = (text) => {
 
 export { SECTION_COLORS }
 
-// ── Regex para detectar acordes individuales dentro de una línea ──────────────
-// Detecta: C, Cm, C#, Db, Cmaj7, C7, Csus4, Cadd9, Cdim, Caug
-// También con prefijos/sufijos: (C), -C, C-, /C, C/G, C//G
-const CHORD_TOKEN_REGEX = /[A-G][#b]?(m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(\/[A-G][#b]?)?/g
+// ── Regex para detectar tokens de acorde ─────────────────────────────────────
+const CHORD_BRACKET_RE = /(\[([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\]|\(([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\)|(?<![A-Za-z])([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)(?![A-Za-z]))/g
 
-// Extrae acordes con su posición en la línea
-const extractChordsFromLine = (line) => {
+const extractChordTokens = (line) => {
   const results = []
+  CHORD_BRACKET_RE.lastIndex = 0
   let match
-
-  // Reset regex
-  CHORD_TOKEN_REGEX.lastIndex = 0
-
-  while ((match = CHORD_TOKEN_REGEX.exec(line)) !== null) {
-    const chord = match[0]
-    const index = match.index
-    // Verificar que sea un acorde real y no parte de una palabra
-    const charBefore = index > 0 ? line[index - 1] : ' '
-    const charAfter  = index + chord.length < line.length ? line[index + chord.length] : ' '
-
-    // No detectar si está pegado a letras (parte de una palabra de texto)
-    const validBefore = /[\s()\-/\\|,.]/.test(charBefore) || index === 0
-    const validAfter  = /[\s()\-/\\|,.]/.test(charAfter)  || index + chord.length === line.length
-
-    if (validBefore && validAfter) {
-      results.push({ chord, index, end: index + chord.length })
+  while ((match = CHORD_BRACKET_RE.exec(line)) !== null) {
+    const chord = match[2] || match[3] || match[4]
+    if (chord) {
+      results.push({ chord, index: match.index, end: match.index + match[0].length })
     }
   }
   return results
 }
 
-// ── Componente de línea de acordes con clic individual ────────────────────────
-function ChordLine({ line, fontSize, onChordClick }) {
-  const chords = extractChordsFromLine(line)
+// ── ChunkRow: renderiza una fila acorde+letra ─────────────────────────────────
+function ChunkRow({ chordLine, lyricLine, fontSize, onChordClick }) {
+  const tokens = extractChordTokens(chordLine)
 
-  if (chords.length === 0) {
+  if (tokens.length === 0) {
     return (
-      <span style={{
-        fontFamily: 'monospace',
-        fontSize: (fontSize - 1) + 'px',
-        color: '#00d4ff', fontWeight: '600',
-        whiteSpace: 'pre'
-      }}>
-        {line}
-      </span>
+      <div style={{ display: 'flex', flexWrap: 'wrap', lineHeight: '1', marginBottom: '4px' }}>
+        <span style={{ fontFamily: 'monospace', fontSize: (fontSize - 1) + 'px', color: '#00d4ff', fontWeight: '600', whiteSpace: 'pre' }}>
+          {chordLine}
+        </span>
+      </div>
     )
   }
 
-  const parts = []
-  let lastIdx = 0
+  const segments = []
+  let lastEnd = 0
 
-  chords.forEach(({ chord, index, end }) => {
-    // Texto antes del acorde
-    if (index > lastIdx) {
-      parts.push(
-        <span key={`gap-${index}`} style={{ color: '#00d4ff' }}>
-          {line.slice(lastIdx, index)}
-        </span>
-      )
+  tokens.forEach(({ chord, index, end }, i) => {
+    if (index > lastEnd) {
+      const lyricGap = lyricLine ? lyricLine.slice(lastEnd, index) : ''
+      segments.push({ chord: null, lyric: lyricGap || ' ' })
     }
-    // El acorde clickeable
-    parts.push(
-      <span
-        key={`chord-${index}`}
-        onClick={(e) => { e.stopPropagation(); onChordClick(chord) }}
-        style={{
-          color: '#00d4ff',
-          fontWeight: '800',
-          cursor: 'pointer',
-          borderBottom: '1px dashed rgba(0,212,255,0.5)',
-          borderRadius: '2px',
-          padding: '0 1px',
-          transition: 'all 0.15s',
-          userSelect: 'none'
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.background    = 'rgba(0,212,255,0.15)'
-          e.currentTarget.style.borderBottom  = '1px solid #00d4ff'
-          e.currentTarget.style.borderRadius  = '4px'
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.background    = 'transparent'
-          e.currentTarget.style.borderBottom  = '1px dashed rgba(0,212,255,0.5)'
-          e.currentTarget.style.borderRadius  = '2px'
-        }}
-        title={`Ver diagrama: ${chord}`}
-      >
-        {chord}
-      </span>
-    )
-    lastIdx = end
+
+    const nextStart = tokens[i + 1]?.index ?? Math.max(chordLine.length, lyricLine?.length ?? 0)
+    const lyricSlice = lyricLine ? lyricLine.slice(index, nextStart) : ''
+
+    segments.push({ chord, lyric: lyricSlice })
+    lastEnd = end
   })
 
-  // Resto de la línea después del último acorde
-  if (lastIdx < line.length) {
-    parts.push(
-      <span key="tail" style={{ color: '#00d4ff' }}>
-        {line.slice(lastIdx)}
-      </span>
-    )
+  if (lastEnd < (lyricLine?.length ?? 0)) {
+    const tail = lyricLine.slice(lastEnd)
+    if (tail) segments.push({ chord: null, lyric: tail })
   }
 
   return (
-    <span style={{
-      fontFamily: 'monospace',
-      fontSize: (fontSize - 1) + 'px',
-      fontWeight: '600',
-      whiteSpace: 'pre'
+    <div style={{
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'flex-end',
+      lineHeight: '1',
+      marginBottom: '2px'
     }}>
-      {parts}
-    </span>
+      {segments.map((seg, i) => (
+        <div
+          key={i}
+          style={{
+            display: 'inline-flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            marginRight: seg.chord ? '2px' : '0',
+          }}
+        >
+          {/* Acorde */}
+          <div
+            style={{
+              fontSize: (fontSize - 2) + 'px',
+              fontFamily: 'monospace',
+              fontWeight: '800',
+              color: seg.chord ? '#00d4ff' : 'transparent',
+              lineHeight: '1.3',
+              minHeight: (fontSize - 2) * 1.3 + 'px',
+              whiteSpace: 'nowrap',
+              cursor: seg.chord ? 'pointer' : 'default',
+              borderBottom: seg.chord ? '1px dashed rgba(0,212,255,0.4)' : 'none',
+              borderRadius: '2px',
+              padding: seg.chord ? '0 2px' : '0',
+              transition: 'all 0.15s',
+              userSelect: 'none',
+            }}
+            onClick={() => seg.chord && onChordClick(seg.chord)}
+            onMouseEnter={e => {
+              if (!seg.chord) return
+              e.currentTarget.style.background   = 'rgba(0,212,255,0.15)'
+              e.currentTarget.style.borderBottom = '1px solid #00d4ff'
+            }}
+            onMouseLeave={e => {
+              if (!seg.chord) return
+              e.currentTarget.style.background   = 'transparent'
+              e.currentTarget.style.borderBottom = '1px dashed rgba(0,212,255,0.4)'
+            }}
+            title={seg.chord ? `Ver diagrama: ${seg.chord}` : undefined}
+          >
+            {seg.chord || ''}
+          </div>
+
+          {/* Letra */}
+          <div style={{
+            fontSize: fontSize + 'px',
+            color: '#e2e8f0',
+            lineHeight: '1.7',
+            whiteSpace: 'pre',
+            minWidth: seg.lyric ? undefined : '4px',
+          }}>
+            {seg.lyric || ''}
+          </div>
+        </div>
+      ))}
+    </div>
   )
+}
+
+// ── Renderizado inteligente de líneas ─────────────────────────────────────────
+function renderLines(lines, showingChords, fontSize, onChordClick) {
+  const result = []
+  let i = 0
+
+  while (i < lines.length) {
+    const line = lines[i]
+    const isEmpty = line.trim() === ''
+
+    if (isEmpty) {
+      result.push(<div key={`empty-${i}`} style={{ height: '12px' }} />)
+      i++
+      continue
+    }
+
+    if (showingChords && isChordLine(line)) {
+      const nextLine = lines[i + 1]
+      const hasLyricNext = nextLine !== undefined && !isChordLine(nextLine) && nextLine.trim() !== ''
+
+      if (hasLyricNext) {
+        result.push(
+          <ChunkRow
+            key={`pair-${i}`}
+            chordLine={line}
+            lyricLine={nextLine}
+            fontSize={fontSize}
+            onChordClick={onChordClick}
+          />
+        )
+        i += 2
+      } else {
+        result.push(
+          <ChunkRow
+            key={`chord-only-${i}`}
+            chordLine={line}
+            lyricLine=""
+            fontSize={fontSize}
+            onChordClick={onChordClick}
+          />
+        )
+        i++
+      }
+    } else {
+      result.push(
+        <div key={`lyric-${i}`} style={{
+          fontSize: fontSize + 'px',
+          lineHeight: '1.9',
+          color: '#e2e8f0',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          marginBottom: '2px'
+        }}>
+          {line}
+        </div>
+      )
+      i++
+    }
+  }
+
+  return result
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function LyricsView({
-  chordsText = '',
-  lyricsText = '',
-  fontSize   = 15,
-  autoScroll = false,
+  chordsText  = '',
+  lyricsText  = '',
+  fontSize    = 15,
+  autoScroll  = false,
   scrollSpeed = 50,
-  padding    = '14px 12px'
+  padding     = '14px 12px'
 }) {
   const containerRef   = useRef(null)
   const sectionRefs    = useRef({})
@@ -190,7 +249,7 @@ export default function LyricsView({
   const hasLyrics = lyricsText.trim().length > 0
 
   const showingChords = (mode === 'chords' || !hasLyrics) && hasChords
-  const textToShow    = showingChords ? chordsText : lyricsText || chordsText
+  const textToShow    = showingChords ? chordsText : (lyricsText || chordsText)
   const sections      = parseSections(textToShow)
   const namedSections = sections.filter(s => s.title)
 
@@ -200,7 +259,6 @@ export default function LyricsView({
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  // Auto scroll
   useEffect(() => {
     if (autoScroll && isScrolling) {
       const el = containerRef.current
@@ -235,8 +293,6 @@ export default function LyricsView({
         flexShrink: 0, overflowX: 'auto',
         WebkitOverflowScrolling: 'touch'
       }}>
-
-        {/* Toggle Acordes / Letra */}
         {hasChords && hasLyrics && (
           <div style={{
             display: 'flex', flexShrink: 0,
@@ -258,7 +314,6 @@ export default function LyricsView({
           </div>
         )}
 
-        {/* Índice de secciones */}
         {namedSections.map((s, i) => (
           <button key={i} onClick={() => scrollToSection(s.title)} style={{
             flexShrink: 0, padding: '3px 8px', borderRadius: '20px', cursor: 'pointer',
@@ -268,7 +323,6 @@ export default function LyricsView({
           }}>{s.title}</button>
         ))}
 
-        {/* Hint diagramas */}
         {showingChords && (
           <div style={{
             flexShrink: 0, padding: '2px 7px', borderRadius: '20px',
@@ -279,7 +333,6 @@ export default function LyricsView({
           </div>
         )}
 
-        {/* Auto scroll */}
         {autoScroll !== undefined && (
           <button onClick={() => setIsScrolling(s => !s)} style={{
             flexShrink: 0, padding: '3px 8px', borderRadius: '20px', cursor: 'pointer',
@@ -294,68 +347,29 @@ export default function LyricsView({
       </div>
 
       {/* ── Contenido ── */}
-      <div
-        ref={containerRef}
-        style={{ padding, overflowX: 'hidden' }}
-      >
+      <div ref={containerRef} style={{ padding, overflowX: 'hidden' }}>
         {sections.map((section, si) => (
           <div
             key={si}
             ref={el => { if (section.title) sectionRefs.current[section.title] = el }}
-            style={{ marginBottom: '24px' }}
+            style={{ marginBottom: '28px' }}
           >
-            {/* Título de sección */}
             {section.title && (
               <div style={{
                 color: section.color,
                 fontSize: (fontSize + 1) + 'px',
                 fontWeight: '700',
-                marginBottom: '6px',
+                marginBottom: '10px',
                 letterSpacing: '0.5px'
               }}>
                 [{section.title}]
               </div>
             )}
-
-            {/* Líneas */}
-            {section.lines.map((line, li) => {
-              const isChord = isChordLine(line)
-              const isEmpty = line.trim() === ''
-
-              return (
-                <div key={li} style={{
-                  fontSize:     (isChord ? fontSize - 1 : fontSize) + 'px',
-                  lineHeight:   isChord ? '1.5' : '1.9',
-                  marginBottom: isEmpty ? '6px' : '0',
-                  whiteSpace:   'pre-wrap',
-                  wordBreak:    'break-word',
-                  overflowWrap: 'break-word'
-                }}>
-                  {isEmpty ? (
-                    <span>&nbsp;</span>
-                  ) : isChord && showingChords ? (
-                    <ChordLine
-                      line={line}
-                      fontSize={fontSize}
-                      onChordClick={setActiveChord}
-                    />
-                  ) : (
-                    <span style={{
-                      color:      isChord ? '#00d4ff' : '#e2e8f0',
-                      fontFamily: isChord ? 'monospace' : 'inherit',
-                      fontWeight: isChord ? '600' : '400'
-                    }}>
-                      {line}
-                    </span>
-                  )}
-                </div>
-              )
-            })}
+            {renderLines(section.lines, showingChords, fontSize, setActiveChord)}
           </div>
         ))}
       </div>
 
-      {/* ── Modal diagrama ── */}
       {activeChord && (
         <ChordDiagram
           chordName={activeChord}
