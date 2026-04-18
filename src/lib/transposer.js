@@ -1,4 +1,5 @@
-// ── Escalas ──────────────────────────────────────────────────────────────────
+// src/lib/transposer.js
+
 const SHARPS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
 const FLATS  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B']
 
@@ -18,9 +19,7 @@ const cleanToken = (token) => {
 }
 
 const CHORD_CORE = /^[A-G][#b]?(m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(\/[A-G][#b]?)?$/
-
-// Nota sola sin sufijo (A, B, C, D, E, F, G) — ambigua
-const BARE_NOTE = /^[A-G]$/
+const BARE_NOTE  = /^[A-G]$/
 
 export const isChord = (raw) => {
   if (!raw) return false
@@ -30,51 +29,40 @@ export const isChord = (raw) => {
 }
 
 // ── Detectar si una línea es de acordes ──────────────────────────────────────
-// Reglas mejoradas para evitar falsos positivos:
-//
-// 1. Si la línea tiene UN solo token que es nota sola (A, B, E...) → ambigua,
-//    se resuelve por contexto en transposeText.
-// 2. Si la línea contiene palabras en español comunes → es letra.
-// 3. Si la línea empieza con // y tiene palabras → es letra con marcadores.
-// 4. Al menos 60% de tokens deben ser acordes (subido de 50%).
 export const isChordLine = (line) => {
   if (!line) return false
   const trimmed = line.trim()
   if (!trimmed) return false
 
-  // Secciones tipo [Verso 1] → nunca son acordes
+  // Secciones [Verso 1] → nunca acordes
   if (/^\[[^\]]+\]$/.test(trimmed)) return false
 
-  // Líneas con // que contienen palabras en español → letra
-  // Ej: "//A danzar//", "//Y será llena//"
+  // Líneas con // que tienen palabras en español → letra
+  // Ej: "//A danzar//", "//Y será llena la tierra//"
   if (/^\/\//.test(trimmed)) {
-    // Quitar los // y ver si queda algo con palabras
-    const inner = trimmed.replace(/^\/+|\/+$/g, '').trim()
-    const words = inner.split(/\s+/).filter(Boolean)
-    // Si tiene más de 1 token y alguno no es acorde → es letra
-    const nonChordWords = words.filter(w => {
+    const inner    = trimmed.replace(/^\/+|\/+$/g, '').trim()
+    const words    = inner.split(/\s+/).filter(Boolean)
+    const nonChord = words.filter(w => {
       const c = cleanToken(w)
       return c && !CHORD_CORE.test(c)
     })
-    if (nonChordWords.length > 0) return false
+    if (nonChord.length > 0) return false
   }
 
   const tokens = trimmed.split(/\s+/).filter(t => t.length > 0)
   if (tokens.length === 0) return false
 
-  let chordCount = 0
+  let chordCount    = 0
   let bareNoteCount = 0
 
   for (const token of tokens) {
     const clean = cleanToken(token)
     if (!clean) continue
-
     if (CHORD_CORE.test(clean)) {
       chordCount++
       if (BARE_NOTE.test(clean)) bareNoteCount++
       continue
     }
-    // Quitar // internos: //Am// → Am
     const inner = clean.replace(/^\/+|\/+$/g, '')
     if (inner && CHORD_CORE.test(inner)) {
       chordCount++
@@ -84,22 +72,15 @@ export const isChordLine = (line) => {
   }
 
   const nonEmpty = tokens.filter(t => cleanToken(t).length > 0)
-  const ratio = chordCount / nonEmpty.length
 
-  // Si solo hay UN token y es nota sola (A, B, E...) → marcar como ambiguo
-  // Se devuelve true solo si tiene sufijo (C#m, Am, G7) o hay >1 token
-  if (nonEmpty.length === 1 && bareNoteCount === 1) {
-    // Un solo token que es nota simple → muy ambiguo.
-    // Solo aceptar como acorde si está completamente solo en la línea
-    // (sin texto adicional), lo cual es válido en partituras Nashville.
-    return true  // Se filtra por contexto en transposeText
-  }
+  // Un solo token que es nota sola (A, B, E...) → acorde solo válido en Nashville
+  if (nonEmpty.length === 1 && bareNoteCount === 1) return true
 
-  // Umbral: 60% de tokens deben ser acordes
-  return chordCount > 0 && ratio >= 0.6
+  // Umbral 60%: mayoría de tokens deben ser acordes
+  return chordCount > 0 && (chordCount / nonEmpty.length) >= 0.6
 }
 
-// ── Transponer nota individual ────────────────────────────────────────────────
+// ── Transponer nota ───────────────────────────────────────────────────────────
 export const transposeNote = (note, semitones, useFlats = false) => {
   const idx = noteToIndex(note)
   if (idx === -1) return note
@@ -116,10 +97,8 @@ const parseChord = (raw) => {
   } else if (/^[A-G]/.test(token)) {
     root = token.slice(0, 1); rest = token.slice(1)
   } else return null
-  const slashIdx = rest.lastIndexOf('/')
-  if (slashIdx !== -1) {
-    return { root, suffix: rest.slice(0, slashIdx), bass: rest.slice(slashIdx + 1) }
-  }
+  const s = rest.lastIndexOf('/')
+  if (s !== -1) return { root, suffix: rest.slice(0, s), bass: rest.slice(s + 1) }
   return { root, suffix: rest, bass: null }
 }
 
@@ -139,12 +118,9 @@ export const transposeChord = (raw, semitones, useFlats = false) => {
   return prefix + result + suffix
 }
 
-// ── Transponer línea de acordes preservando columnas ─────────────────────────
-// Cuando un acorde cambia de longitud (A→Bb, Cm→Dm) los espacios se ajustan
-// para que cada acorde siga en la misma columna visual que el original.
+// ── Transponer línea preservando columnas ─────────────────────────────────────
 const transposeChordLineClean = (line, semitones, useFlats) => {
   const CHORD_RE = /(?<![A-Za-z])([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)(?![A-Za-z\d])/g
-
   const tokens = []
   let m
   while ((m = CHORD_RE.exec(line)) !== null) {
@@ -157,33 +133,24 @@ const transposeChordLineClean = (line, semitones, useFlats) => {
       transposed: transposeChord(chord, semitones, useFlats),
     })
   }
-
   if (tokens.length === 0) return line
 
-  let out   = ''
-  let pos   = 0
-  let extra = 0  // caracteres acumulados de diferencia de longitud
-
+  let out = '', pos = 0, extra = 0
   for (const tok of tokens) {
     const between = line.slice(pos, tok.start)
-
     let compensated = between
     if (extra > 0) {
-      // Acordes anteriores más largos → comprimir espacios del gap
       const trimmed = between.replace(new RegExp(` {1,${extra}}$`), '')
       extra -= (between.length - trimmed.length)
       compensated = trimmed
     } else if (extra < 0) {
-      // Acordes anteriores más cortos → añadir espacios
       compensated = between + ' '.repeat(Math.abs(extra))
       extra = 0
     }
-
     out += compensated + tok.transposed
     extra += tok.transposed.length - tok.original.length
     pos = tok.end
   }
-
   out += line.slice(pos)
   return out
 }
@@ -193,26 +160,19 @@ export const transposeText = (text, semitones, useFlats = false) => {
   if (!text || semitones === 0) return text
 
   const lines = text.split('\n')
-
   return lines.map((line, idx) => {
     if (!isChordLine(line)) return line
 
-    // Caso especial: línea con UN solo token que es nota simple (A, B, E...)
-    // Verificar contexto: si la línea anterior o siguiente también es acorde
-    // o es letra, decidir correctamente.
+    // Nota sola ambigua (A, B, E...) → verificar contexto
     const trimmed = line.trim()
-    const tokens  = trimmed.split(/\s+/).filter(Boolean)
-    if (tokens.length === 1 && BARE_NOTE.test(cleanToken(tokens[0]))) {
-      const prevLine = lines[idx - 1] ?? ''
-      const nextLine = lines[idx + 1] ?? ''
-      // Si la línea siguiente es claramente letra (tiene palabras no-acorde) → es acorde solo
-      // Si la línea anterior es acorde → este también es acorde
-      const prevIsChord = isChordLine(prevLine)
+    const toks    = trimmed.split(/\s+/).filter(Boolean)
+    if (toks.length === 1 && BARE_NOTE.test(cleanToken(toks[0]))) {
+      const nextLine    = lines[idx + 1] ?? ''
       const nextHasWords = nextLine.trim().split(/\s+/).some(t => {
         const c = cleanToken(t)
         return c && !CHORD_CORE.test(c)
       })
-      // Solo transponer si hay contexto claro de que es acorde
+      const prevIsChord = idx > 0 && isChordLine(lines[idx - 1])
       if (!prevIsChord && !nextHasWords) return line
     }
 
@@ -252,7 +212,6 @@ export const semitonesFromTo = (fromKey, toKey) => {
   return diff
 }
 
-// ── Grupos de tonos para selector visual ─────────────────────────────────────
 export const KEYS_GROUPED = {
   'Mayores ♯': ['C','G','D','A','E','B','F#'],
   'Mayores ♭': ['F','Bb','Eb','Ab','Db','Gb'],
