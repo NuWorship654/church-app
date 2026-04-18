@@ -14,7 +14,6 @@ const indexToNote = (idx, useFlats = false) => {
 }
 
 // ── Limpiar token para analizarlo ────────────────────────────────────────────
-// Quita corchetes, paréntesis, guiones, barras al inicio y final
 const cleanToken = (token) => {
   return token.replace(/^[\[\]()\-/\\|,.\s]+|[\[\]()\-/\\|,.\s]+$/g, '').trim()
 }
@@ -22,7 +21,6 @@ const cleanToken = (token) => {
 // ── Regex base de un acorde ───────────────────────────────────────────────────
 const CHORD_CORE = /^[A-G][#b]?(m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(\/[A-G][#b]?)?$/
 
-// Verificar si un string limpio es un acorde válido
 export const isChord = (raw) => {
   if (!raw) return false
   const clean = cleanToken(raw)
@@ -36,35 +34,23 @@ export const isChordLine = (line) => {
   const trimmed = line.trim()
   if (!trimmed) return false
 
-  // Secciones tipo [Verso 1], [Coro] — un solo bloque entre corchetes
   if (/^\[[^\]]+\]$/.test(trimmed)) return false
 
-  // Separar la línea en tokens por espacios
   const tokens = trimmed.split(/\s+/).filter(t => t.length > 0)
   if (tokens.length === 0) return false
 
   let chordCount = 0
 
   for (const token of tokens) {
-    // Quitar caracteres decorativos: [C#m] → C#m, (Am) → Am, -G- → G
     const clean = cleanToken(token)
     if (!clean) continue
 
-    // Puede ser un slash chord limpio: C/G, C#m/E
-    if (CHORD_CORE.test(clean)) {
-      chordCount++
-      continue
-    }
+    if (CHORD_CORE.test(clean)) { chordCount++; continue }
 
-    // Puede traer barras dobles o triples: //Am// → Am
     const inner = clean.replace(/^\/+|\/+$/g, '')
-    if (inner && CHORD_CORE.test(inner)) {
-      chordCount++
-      continue
-    }
+    if (inner && CHORD_CORE.test(inner)) { chordCount++; continue }
   }
 
-  // Al menos 50% de los tokens no vacíos deben ser acordes
   const nonEmpty = tokens.filter(t => cleanToken(t).length > 0)
   return chordCount > 0 && (chordCount / nonEmpty.length) >= 0.5
 }
@@ -99,11 +85,10 @@ const parseChord = (raw) => {
   return { root, suffix: rest, bass: null }
 }
 
-// ── Transponer un acorde completo (preservando decoradores) ──────────────────
+// ── Transponer un acorde completo ─────────────────────────────────────────────
 export const transposeChord = (raw, semitones, useFlats = false) => {
   if (semitones === 0) return raw
 
-  // Preservar prefijo y sufijo decorativo: [C#m] → prefix=[, suffix=]
   const prefixMatch = raw.match(/^([\[\]()\-/\\]*)/)
   const suffixMatch = raw.match(/([\[\]()\-/\\]*)$/)
   const prefix = prefixMatch ? prefixMatch[1] : ''
@@ -123,29 +108,42 @@ export const transposeChord = (raw, semitones, useFlats = false) => {
 }
 
 // ── Transponer texto completo ─────────────────────────────────────────────────
+// FIX: el regex anterior no tenía lookbehind/lookahead, capturaba letras
+// sueltas dentro de palabras de la letra (ej: "A" en "A Danzar", "E" en
+// "presencia") y las transponía. Solución:
+//   1. Solo procesar líneas que isChordLine() apruebe.
+//   2. Usar un regex con (?<![A-Za-z]) y (?![A-Za-z]) para no capturar
+//      letras dentro de palabras.
+//   3. Validar con CHORD_CORE antes de transponer cada match.
 export const transposeText = (text, semitones, useFlats = false) => {
   if (!text || semitones === 0) return text
 
+  // Regex con lookbehind y lookahead para no tocar letras dentro de palabras
+  // Captura: [C#m], (Am), o acordes sueltos como C#m, Am, G/B
+  const CHORD_RE = /(\[([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\]|\(([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\)|(?<![A-Za-z])([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)(?![A-Za-z\d]))/g
+
   return text.split('\n').map(line => {
+    // FIX CLAVE: solo transponer líneas de acordes, nunca líneas de letra
     if (!isChordLine(line)) return line
 
-    // Reemplazar todos los acordes en la línea
-    // El regex captura el acorde con sus decoradores opcionales
-    return line.replace(
-      /(\[)?([A-G][#b]?(m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(\/[A-G][#b]?)?)(\])?/g,
-      (match, openBracket, chord, ...rest) => {
-        const closeBracket = rest[rest.length - 1] // último grupo capturado
-        if (!CHORD_CORE.test(chord)) return match
-        const parsed = parseChord(chord)
-        if (!parsed) return match
-        const newRoot = transposeNote(parsed.root, semitones, useFlats)
-        const newBass = parsed.bass ? transposeNote(parsed.bass, semitones, useFlats) : null
-        const newChord = newBass
-          ? `${newRoot}${parsed.suffix}/${newBass}`
-          : `${newRoot}${parsed.suffix}`
-        return (openBracket || '') + newChord + (closeBracket || '')
-      }
-    )
+    return line.replace(CHORD_RE, (match, _full, bracketChord, parenChord, bareChord) => {
+      const chord = bracketChord ?? parenChord ?? bareChord
+      if (!chord || !CHORD_CORE.test(chord)) return match
+
+      const parsed = parseChord(chord)
+      if (!parsed) return match
+
+      const newRoot  = transposeNote(parsed.root, semitones, useFlats)
+      const newBass  = parsed.bass ? transposeNote(parsed.bass, semitones, useFlats) : null
+      const newChord = newBass
+        ? `${newRoot}${parsed.suffix}/${newBass}`
+        : `${newRoot}${parsed.suffix}`
+
+      // Preservar el tipo de delimitador original: [], (), o nada
+      if (bracketChord) return `[${newChord}]`
+      if (parenChord)   return `(${newChord})`
+      return newChord
+    })
   }).join('\n')
 }
 
