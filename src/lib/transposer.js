@@ -44,9 +44,7 @@ export const isChordLine = (line) => {
   for (const token of tokens) {
     const clean = cleanToken(token)
     if (!clean) continue
-
     if (CHORD_CORE.test(clean)) { chordCount++; continue }
-
     const inner = clean.replace(/^\/+|\/+$/g, '')
     if (inner && CHORD_CORE.test(inner)) { chordCount++; continue }
   }
@@ -107,43 +105,138 @@ export const transposeChord = (raw, semitones, useFlats = false) => {
   return prefix + result + suffix
 }
 
+// ── Transponer línea de acordes preservando columnas ─────────────────────────
+// El formato Nashville usa espacios para alinear acordes con la letra:
+//   "Cm                   Fm              Gm"
+//   "Alza tus ojos y mira la cosecha esta lista"
+//
+// Cuando un acorde cambia de longitud (ej. Cm→Dm#, A→Bb) los espacios
+// se desfasan y los acordes ya no quedan sobre la sílaba correcta.
+//
+// Solución: reconstruir la línea acorde a acorde, ajustando los espacios
+// entre ellos para que cada acorde transpuesto empiece en la misma columna
+// que el original.
+const transposeChordLine = (line, semitones, useFlats) => {
+  // Encontrar todos los acordes con su posición exacta en la línea
+  const CHORD_RE = /(?<![A-Za-z])([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)(?![A-Za-z\d])/g
+
+  const matches = []
+  let m
+  while ((m = CHORD_RE.exec(line)) !== null) {
+    const chord = m[1]
+    if (!CHORD_CORE.test(chord)) continue
+    matches.push({
+      original: chord,
+      transposed: transposeChord(chord, semitones, useFlats),
+      col: m.index,           // columna original donde empieza el acorde
+      end: m.index + chord.length,
+    })
+  }
+
+  if (matches.length === 0) return line
+
+  // Reconstruir la línea manteniendo las columnas originales
+  // Si el acorde transpuesto es más corto → rellenar con espacios
+  // Si es más largo → comprimir los espacios que le siguen (mínimo 1)
+  let result = ''
+  let cursor = 0   // posición actual en la línea resultado
+  let drift  = 0   // cuántos caracteres de diferencia llevamos acumulados
+
+  for (const match of matches) {
+    const targetCol = match.col  // columna donde debería aparecer en original
+    const curCol    = targetCol - drift  // columna ajustada con drift acumulado
+
+    // Copiar el texto entre el cursor actual y donde empieza este acorde
+    const gapOriginal = match.col - (cursor + drift)
+    const gap = Math.max(1, gapOriginal)  // mínimo 1 espacio entre acordes
+    result += line.slice(cursor + drift, match.col)  // texto/espacios intermedios sin drift
+    // Ajustamos: copiamos exactamente los caracteres originales entre acordes
+    // pero si hay drift positivo (acordes se alargaron), reducimos espacios
+    const spaceBefore = match.col - (cursor + drift)
+    if (spaceBefore > 0) {
+      // ya copiado arriba
+    }
+    cursor = match.col
+
+    result += match.transposed
+    drift += match.transposed.length - match.original.length
+    cursor = match.end
+  }
+
+  // Resto de la línea después del último acorde
+  if (cursor < line.length) {
+    result += line.slice(cursor)
+  }
+
+  return result
+}
+
+// ── Versión limpia y correcta de transposeChordLine ──────────────────────────
+// (reemplaza la de arriba con lógica más simple y robusta)
+const transposeChordLineClean = (line, semitones, useFlats) => {
+  const CHORD_RE = /(?<![A-Za-z])([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)(?![A-Za-z\d])/g
+
+  // 1. Extraer todos los acordes con posición y versión transpuesta
+  const tokens = []
+  let m
+  while ((m = CHORD_RE.exec(line)) !== null) {
+    const chord = m[1]
+    if (!CHORD_CORE.test(chord)) continue
+    tokens.push({
+      start:      m.index,
+      end:        m.index + chord.length,
+      original:   chord,
+      transposed: transposeChord(chord, semitones, useFlats),
+    })
+  }
+
+  if (tokens.length === 0) return line
+
+  // 2. Reconstruir preservando columnas
+  // Estrategia: mantener la posición de inicio de cada acorde.
+  // Si un acorde anterior fue más largo, compensar reduciendo espacios.
+  // Si fue más corto, añadir espacios extra.
+  let out   = ''
+  let pos   = 0   // posición actual en el string original
+  let extra = 0   // caracteres extra acumulados (+ = alargamos, - = acortamos)
+
+  for (const tok of tokens) {
+    // Copiar texto entre posición actual y start del acorde
+    const between = line.slice(pos, tok.start)
+    // Compensar: si extra > 0 (acordes anteriores más largos), recortar espacios del between
+    // Si extra < 0 (acordes anteriores más cortos), añadir espacios
+    let compensated = between
+    if (extra > 0) {
+      // Intentar quitar hasta `extra` espacios del final de `between`
+      const trimmed = between.replace(new RegExp(` {1,${extra}}$`), '')
+      const removed = between.length - trimmed.length
+      extra -= removed
+      compensated = trimmed
+    } else if (extra < 0) {
+      // Añadir espacios para compensar
+      compensated = between + ' '.repeat(Math.abs(extra))
+      extra = 0
+    }
+
+    out += compensated
+    out += tok.transposed
+    extra += tok.transposed.length - tok.original.length
+    pos = tok.end
+  }
+
+  // Resto después del último acorde
+  out += line.slice(pos)
+  return out
+}
+
 // ── Transponer texto completo ─────────────────────────────────────────────────
-// FIX: el regex anterior no tenía lookbehind/lookahead, capturaba letras
-// sueltas dentro de palabras de la letra (ej: "A" en "A Danzar", "E" en
-// "presencia") y las transponía. Solución:
-//   1. Solo procesar líneas que isChordLine() apruebe.
-//   2. Usar un regex con (?<![A-Za-z]) y (?![A-Za-z]) para no capturar
-//      letras dentro de palabras.
-//   3. Validar con CHORD_CORE antes de transponer cada match.
 export const transposeText = (text, semitones, useFlats = false) => {
   if (!text || semitones === 0) return text
 
-  // Regex con lookbehind y lookahead para no tocar letras dentro de palabras
-  // Captura: [C#m], (Am), o acordes sueltos como C#m, Am, G/B
-  const CHORD_RE = /(\[([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\]|\(([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\)|(?<![A-Za-z])([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)(?![A-Za-z\d]))/g
-
   return text.split('\n').map(line => {
-    // FIX CLAVE: solo transponer líneas de acordes, nunca líneas de letra
+    // Solo procesar líneas de acordes, nunca tocar la letra
     if (!isChordLine(line)) return line
-
-    return line.replace(CHORD_RE, (match, _full, bracketChord, parenChord, bareChord) => {
-      const chord = bracketChord ?? parenChord ?? bareChord
-      if (!chord || !CHORD_CORE.test(chord)) return match
-
-      const parsed = parseChord(chord)
-      if (!parsed) return match
-
-      const newRoot  = transposeNote(parsed.root, semitones, useFlats)
-      const newBass  = parsed.bass ? transposeNote(parsed.bass, semitones, useFlats) : null
-      const newChord = newBass
-        ? `${newRoot}${parsed.suffix}/${newBass}`
-        : `${newRoot}${parsed.suffix}`
-
-      // Preservar el tipo de delimitador original: [], (), o nada
-      if (bracketChord) return `[${newChord}]`
-      if (parenChord)   return `(${newChord})`
-      return newChord
-    })
+    return transposeChordLineClean(line, semitones, useFlats)
   }).join('\n')
 }
 
