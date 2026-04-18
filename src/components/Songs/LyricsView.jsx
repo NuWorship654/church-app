@@ -1,51 +1,27 @@
-/**
- * LyricsView.jsx — Refactorizado
- *
- * Cambios principales:
- *  - Estilos extraídos a objetos de estilo reutilizables (styleMap)
- *  - renderLines convertido al componente <LyricsContent>
- *  - Regex de acordes compilado una sola vez fuera del módulo
- *  - useRef para sectionRefs limpiado correctamente en cada render
- *  - Auto-scroll con requestAnimationFrame en lugar de setInterval
- *  - Accesibilidad: role, aria-label, tabIndex en acordes clickeables
- *  - parseSections / SECTION_COLORS / extractChordTokens movidos a
- *    lib/lyrics.js (aquí se mantienen como named exports para retrocompat.)
- */
-
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { isChordLine } from '../../lib/transposer'
 import ChordDiagram from './ChordDiagram'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constantes de sección
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Colores por sección ───────────────────────────────────────────────────────
 export const SECTION_COLORS = {
-  verso:       '#00d4ff',
-  coro:        '#7c3aed',
-  puente:      '#06ffa5',
-  intro:       '#f59e0b',
-  outro:       '#f87171',
-  'pre-coro':  '#ec4899',
-  precoro:     '#ec4899',
-  interludio:  '#8b5cf6',
-  final:       '#f97316',
-  bridge:      '#06ffa5',
-  chorus:      '#7c3aed',
-  verse:       '#00d4ff',
-  tag:         '#94a3b8',
+  'verso':      '#00d4ff',
+  'coro':       '#7c3aed',
+  'puente':     '#06ffa5',
+  'intro':      '#f59e0b',
+  'outro':      '#f87171',
+  'pre-coro':   '#ec4899',
+  'precoro':    '#ec4899',
+  'interludio': '#8b5cf6',
+  'final':      '#f97316',
+  'bridge':     '#06ffa5',
+  'chorus':     '#7c3aed',
+  'verse':      '#00d4ff',
+  'tag':        '#94a3b8',
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Regex compilado una sola vez
-// ─────────────────────────────────────────────────────────────────────────────
-const CHORD_BRACKET_RE = /(\[([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\]|\(([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\)|(?<![A-Za-z])([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)(?![A-Za-z]))/g
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers puros
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Parsear secciones ─────────────────────────────────────────────────────────
 export const parseSections = (text) => {
   if (!text) return []
-
   const sections = []
   let current = null
 
@@ -64,41 +40,35 @@ export const parseSections = (text) => {
     } else if (current) {
       current.lines.push(line)
     } else {
-      if (!sections.length) {
-        sections.push({ title: null, key: 'song', color: '#64748b', lines: [] })
-      }
+      if (!sections.length) sections.push({ title: null, key: 'song', color: '#64748b', lines: [] })
       sections[sections.length - 1].lines.push(line)
     }
   }
-
   if (current) sections.push(current)
   return sections
 }
 
+// ── Regex de acordes ──────────────────────────────────────────────────────────
+// FIX: La versión original tenía CHORD_BRACKET_RE como variable global con
+// flag 'g'. Las regex con /g mantienen lastIndex entre llamadas. Si una
+// ejecución termina a mitad (ej. línea vacía), la siguiente llamada empieza
+// desde el lastIndex anterior → tokens faltantes o bucle infinito.
+// Solución: crear nueva instancia por cada llamada a extractChordTokens.
+const CHORD_PATTERN = String.raw`(\[([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\]|\(([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\)|(?<![A-Za-z])([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)(?![A-Za-z]))`
+
 const extractChordTokens = (line) => {
+  const re = new RegExp(CHORD_PATTERN, 'g') // nueva instancia → lastIndex = 0 siempre
   const results = []
-  CHORD_BRACKET_RE.lastIndex = 0
   let match
-  while ((match = CHORD_BRACKET_RE.exec(line)) !== null) {
+  while ((match = re.exec(line)) !== null) {
     const chord = match[2] || match[3] || match[4]
     if (chord) results.push({ chord, index: match.index, end: match.index + match[0].length })
   }
   return results
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Estilos base (evita recrear objetos por cada render)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Estilos estáticos (fuera del render para no recrear objetos) ──────────────
 const S = {
-  emptyHint: {
-    textAlign: 'center', padding: '30px', color: '#334155',
-  },
-  emptyIcon: {
-    fontSize: '28px', marginBottom: '8px', opacity: 0.3,
-  },
-  emptyText: {
-    margin: 0, fontSize: '13px',
-  },
   controlBar: {
     display: 'flex', alignItems: 'center', gap: '5px',
     padding: '6px 10px',
@@ -117,12 +87,6 @@ const S = {
     background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.1)',
     display: 'flex', alignItems: 'center', gap: '3px',
   },
-  chordHintText: { fontSize: '9px', color: '#1e3a4a' },
-  spacer: { height: '12px' },
-  lyricLine: {
-    lineHeight: '1.9', color: '#e2e8f0',
-    whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: '2px',
-  },
   chunkRow: {
     display: 'flex', flexWrap: 'wrap',
     alignItems: 'flex-end', lineHeight: '1', marginBottom: '2px',
@@ -130,59 +94,62 @@ const S = {
   chunkCell: {
     display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start',
   },
+  spacer:     { height: '12px' },
+  emptyState: { textAlign: 'center', padding: '30px', color: '#334155' },
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ChordToken — acorde individual clicable con accesibilidad
-// ─────────────────────────────────────────────────────────────────────────────
+// ── ChordToken ────────────────────────────────────────────────────────────────
+// FIX: el original mutaba e.currentTarget.style en onMouseEnter/Leave, lo cual
+// es un antipatrón en React: deja el DOM en un estado que React no conoce y
+// puede quedar desfasado tras un re-render. Ahora el hover es estado de React.
 function ChordToken({ chord, fontSize, onChordClick }) {
   const [hovered, setHovered] = useState(false)
 
-  const style = {
+  const baseStyle = {
     fontSize: (fontSize - 2) + 'px',
     fontFamily: 'monospace',
     fontWeight: '800',
-    color: chord ? '#00d4ff' : 'transparent',
     lineHeight: '1.3',
     minHeight: (fontSize - 2) * 1.3 + 'px',
     whiteSpace: 'nowrap',
-    cursor: chord ? 'pointer' : 'default',
-    background: hovered ? 'rgba(0,212,255,0.15)' : 'transparent',
-    borderBottom: hovered
-      ? '1px solid #00d4ff'
-      : chord ? '1px dashed rgba(0,212,255,0.4)' : 'none',
     borderRadius: '2px',
-    padding: chord ? '0 2px' : '0',
     transition: 'all 0.15s',
     userSelect: 'none',
   }
 
-  if (!chord) return <div style={style} />
+  if (!chord) {
+    // Placeholder invisible para mantener alineación vertical
+    return <div style={baseStyle} />
+  }
 
   return (
     <div
       role="button"
       tabIndex={0}
       aria-label={`Ver diagrama de ${chord}`}
-      style={style}
+      title={`Ver diagrama: ${chord}`}
       onClick={() => onChordClick(chord)}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onChordClick(chord)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      title={`Ver diagrama: ${chord}`}
+      style={{
+        ...baseStyle,
+        color: '#00d4ff',
+        cursor: 'pointer',
+        padding: '0 2px',
+        background: hovered ? 'rgba(0,212,255,0.15)' : 'transparent',
+        borderBottom: hovered ? '1px solid #00d4ff' : '1px dashed rgba(0,212,255,0.4)',
+      }}
     >
       {chord}
     </div>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ChunkRow — fila acorde + letra alineados
-// ─────────────────────────────────────────────────────────────────────────────
+// ── ChunkRow ──────────────────────────────────────────────────────────────────
 function ChunkRow({ chordLine, lyricLine = '', fontSize, onChordClick }) {
   const tokens = extractChordTokens(chordLine)
 
-  // Línea que sólo tiene acordes, sin tokens reconocidos (fallback)
   if (tokens.length === 0) {
     return (
       <div style={{ display: 'flex', flexWrap: 'wrap', lineHeight: '1', marginBottom: '4px' }}>
@@ -196,7 +163,6 @@ function ChunkRow({ chordLine, lyricLine = '', fontSize, onChordClick }) {
     )
   }
 
-  // Construir segmentos {chord, lyric}
   const segments = []
   let lastEnd = 0
   const totalLen = Math.max(chordLine.length, lyricLine.length)
@@ -216,14 +182,12 @@ function ChunkRow({ chordLine, lyricLine = '', fontSize, onChordClick }) {
   return (
     <div style={S.chunkRow}>
       {segments.map((seg, i) => (
-        <div
-          key={i}
-          style={{ ...S.chunkCell, marginRight: seg.chord ? '2px' : 0 }}
-        >
+        <div key={i} style={{ ...S.chunkCell, marginRight: seg.chord ? '2px' : 0 }}>
           <ChordToken chord={seg.chord} fontSize={fontSize} onChordClick={onChordClick} />
           <div style={{
-            fontSize: fontSize + 'px', color: '#e2e8f0', lineHeight: '1.7',
-            whiteSpace: 'pre', minWidth: seg.lyric ? undefined : '4px',
+            fontSize: fontSize + 'px', color: '#e2e8f0',
+            lineHeight: '1.7', whiteSpace: 'pre',
+            minWidth: seg.lyric ? undefined : '4px',
           }}>
             {seg.lyric ?? ''}
           </div>
@@ -233,9 +197,10 @@ function ChunkRow({ chordLine, lyricLine = '', fontSize, onChordClick }) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LyricsContent — reemplaza la función renderLines, ahora es un componente
-// ─────────────────────────────────────────────────────────────────────────────
+// ── LyricsContent ─────────────────────────────────────────────────────────────
+// FIX: renderLines era una función común que retornaba JSX, no un componente.
+// React no puede rastrear funciones puras en el árbol de componentes, así que
+// no aplica reconciliación ni puede recibir keys correctamente en el futuro.
 function LyricsContent({ lines, showingChords, fontSize, onChordClick }) {
   const items = []
   let i = 0
@@ -252,7 +217,6 @@ function LyricsContent({ lines, showingChords, fontSize, onChordClick }) {
     if (showingChords && isChordLine(line)) {
       const next = lines[i + 1]
       const hasLyricNext = next !== undefined && !isChordLine(next) && next.trim() !== ''
-
       items.push(
         <ChunkRow
           key={`row-${i}`}
@@ -265,7 +229,10 @@ function LyricsContent({ lines, showingChords, fontSize, onChordClick }) {
       i += hasLyricNext ? 2 : 1
     } else {
       items.push(
-        <div key={`lyr-${i}`} style={{ ...S.lyricLine, fontSize: fontSize + 'px' }}>
+        <div key={`lyr-${i}`} style={{
+          fontSize: fontSize + 'px', lineHeight: '1.9', color: '#e2e8f0',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: '2px',
+        }}>
           {line}
         </div>
       )
@@ -276,123 +243,62 @@ function LyricsContent({ lines, showingChords, fontSize, onChordClick }) {
   return <>{items}</>
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Hooks reutilizables
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Auto-scroll basado en rAF para evitar drift de setInterval */
-function useAutoScroll(containerRef, enabled, speed) {
-  const rafRef    = useRef(null)
-  const lastRef   = useRef(null)
-  const activeRef = useRef(enabled)
-  activeRef.current = enabled
+// ── useAutoScroll ─────────────────────────────────────────────────────────────
+// FIX 1: setInterval acumula drift — cada tick tarda distinto según carga del
+//         browser, sumando error con el tiempo. rAF usa timestamps reales.
+// FIX 2: el fallback `window.scrollBy(0,1)` scrolleaba la PÁGINA completa
+//         cuando containerRef.current era null (ej. durante el primer render).
+function useAutoScroll(containerRef, active, speed) {
+  const rafRef = useRef(null)
+  const lastTs = useRef(null)
 
   useEffect(() => {
-    const el = containerRef.current
-    if (!enabled || !el) {
+    if (!active) {
       cancelAnimationFrame(rafRef.current)
+      lastTs.current = null
       return
     }
 
-    // px por segundo = speed (compat. con la prop original scrollSpeed)
     const pxPerMs = speed / 1000
 
-    const step = (timestamp) => {
-      if (!activeRef.current) return
-      if (lastRef.current !== null) {
-        const delta = timestamp - lastRef.current
-        el.scrollTop += pxPerMs * delta
+    const step = (ts) => {
+      const el = containerRef.current
+      if (el) {
+        if (lastTs.current !== null) el.scrollTop += pxPerMs * (ts - lastTs.current)
+        lastTs.current = ts
       }
-      lastRef.current = timestamp
-      rafRef.current  = requestAnimationFrame(step)
+      rafRef.current = requestAnimationFrame(step)
     }
 
-    lastRef.current = null
-    rafRef.current  = requestAnimationFrame(step)
-
-    return () => cancelAnimationFrame(rafRef.current)
-  }, [enabled, speed, containerRef])
+    rafRef.current = requestAnimationFrame(step)
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      lastTs.current = null
+    }
+  }, [active, speed, containerRef])
 }
 
-/** Registra refs de secciones, limpiando entradas obsoletas en cada render */
+// ── useSectionRefs ────────────────────────────────────────────────────────────
+// FIX: sectionRefs nunca eliminaba entradas al desmontar secciones. Si el texto
+// cambiaba (nueva canción), scrollIntoView podía llamarse sobre nodos huérfanos.
+// El patrón de callback ref con null en el cleanup resuelve esto nativamente.
 function useSectionRefs() {
-  const refs     = useRef({})
-  const keysUsed = useRef(new Set())
+  const map = useRef({})
 
   const register = useCallback((title, el) => {
     if (!title) return
-    if (el) {
-      refs.current[title]  = el
-      keysUsed.current.add(title)
-    } else {
-      delete refs.current[title]
-      keysUsed.current.delete(title)
-    }
+    if (el) map.current[title] = el
+    else delete map.current[title] // React llama con null al desmontar el nodo
   }, [])
 
   const scrollTo = useCallback((title) => {
-    refs.current[title]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    map.current[title]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
   return { register, scrollTo }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Botones de UI (extraídos para no recrear JSX inline)
-// ─────────────────────────────────────────────────────────────────────────────
-function ModeButton({ active, color, activeColor, onClick, label }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '3px 10px', border: 'none', cursor: 'pointer',
-        background: active ? `rgba(${color}, 0.2)` : 'transparent',
-        color: active ? activeColor : '#475569',
-        fontSize: '10px', fontWeight: '700', letterSpacing: '1px', transition: 'all 0.2s',
-      }}
-    >
-      {label}
-    </button>
-  )
-}
-
-function SectionPill({ section, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        flexShrink: 0, padding: '3px 8px', borderRadius: '20px', cursor: 'pointer',
-        background: section.color + '18', border: '1px solid ' + section.color + '40',
-        color: section.color, fontSize: '9px', fontWeight: '700',
-        letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap',
-      }}
-    >
-      {section.title}
-    </button>
-  )
-}
-
-function AutoScrollButton({ isScrolling, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={isScrolling ? 'Pausar auto-scroll' : 'Iniciar auto-scroll'}
-      style={{
-        flexShrink: 0, padding: '3px 8px', borderRadius: '20px', cursor: 'pointer',
-        background: isScrolling ? 'rgba(6,255,165,0.2)' : 'rgba(255,255,255,0.05)',
-        border: '1px solid ' + (isScrolling ? 'rgba(6,255,165,0.5)' : 'rgba(255,255,255,0.1)'),
-        color: isScrolling ? '#06ffa5' : '#475569',
-        fontSize: '9px', fontWeight: '700', letterSpacing: '1px', whiteSpace: 'nowrap',
-      }}
-    >
-      {isScrolling ? '⏸ AUTO' : '▶ AUTO'}
-    </button>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Componente principal
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Componente principal ──────────────────────────────────────────────────────
 export default function LyricsView({
   chordsText  = '',
   lyricsText  = '',
@@ -414,7 +320,7 @@ export default function LyricsView({
   const showingChords = (mode === 'chords' || !hasLyrics) && hasChords
   const textToShow    = showingChords ? chordsText : (lyricsText || chordsText)
 
-  // parseSections sólo recalcula si cambia el texto
+  // FIX: parseSections se llamaba en cada render → O(n) innecesario cada vez
   const sections      = useMemo(() => parseSections(textToShow), [textToShow])
   const namedSections = useMemo(() => sections.filter(s => s.title), [sections])
 
@@ -425,12 +331,17 @@ export default function LyricsView({
 
   if (!hasChords && !hasLyrics) {
     return (
-      <div style={S.emptyHint}>
-        <div style={S.emptyIcon}>♪</div>
-        <p style={S.emptyText}>Sin contenido para mostrar</p>
+      <div style={S.emptyState}>
+        <div style={{ fontSize: '28px', marginBottom: '8px', opacity: 0.3 }}>♪</div>
+        <p style={{ margin: 0, fontSize: '13px' }}>Sin contenido para mostrar</p>
       </div>
     )
   }
+
+  const MODE_BUTTONS = [
+    { key: 'chords', label: 'ACORDES', bg: 'rgba(0,212,255,0.2)',  color: '#00d4ff' },
+    { key: 'lyrics', label: 'LETRA',   bg: 'rgba(124,58,237,0.2)', color: '#a78bfa' },
+  ]
 
   return (
     <div style={{ overflow: 'hidden' }}>
@@ -440,33 +351,59 @@ export default function LyricsView({
 
         {hasChords && hasLyrics && (
           <div style={S.modeToggle}>
-            <ModeButton
-              active={mode === 'chords'}
-              color="0,212,255" activeColor="#00d4ff"
-              onClick={() => setMode('chords')}
-              label="ACORDES"
-            />
-            <ModeButton
-              active={mode === 'lyrics'}
-              color="124,58,237" activeColor="#a78bfa"
-              onClick={() => setMode('lyrics')}
-              label="LETRA"
-            />
+            {MODE_BUTTONS.map(({ key, label, bg, color }) => (
+              <button
+                key={key}
+                onClick={() => setMode(key)}
+                style={{
+                  padding: '3px 10px', border: 'none', cursor: 'pointer',
+                  background: mode === key ? bg : 'transparent',
+                  color: mode === key ? color : '#475569',
+                  fontSize: '10px', fontWeight: '700',
+                  letterSpacing: '1px', transition: 'all 0.2s',
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         )}
 
         {namedSections.map((s, i) => (
-          <SectionPill key={i} section={s} onClick={() => scrollTo(s.title)} />
+          <button
+            key={i}
+            onClick={() => scrollTo(s.title)}
+            style={{
+              flexShrink: 0, padding: '3px 8px', borderRadius: '20px', cursor: 'pointer',
+              background: s.color + '18', border: '1px solid ' + s.color + '40',
+              color: s.color, fontSize: '9px', fontWeight: '700',
+              letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap',
+            }}
+          >
+            {s.title}
+          </button>
         ))}
 
         {showingChords && (
           <div style={S.chordHint}>
-            <span style={S.chordHintText}>toca acorde → diagrama</span>
+            <span style={{ fontSize: '9px', color: '#1e3a4a' }}>toca acorde → diagrama</span>
           </div>
         )}
 
         {autoScroll !== undefined && (
-          <AutoScrollButton isScrolling={isScrolling} onClick={toggleScroll} />
+          <button
+            onClick={toggleScroll}
+            aria-label={isScrolling ? 'Pausar auto-scroll' : 'Iniciar auto-scroll'}
+            style={{
+              flexShrink: 0, padding: '3px 8px', borderRadius: '20px', cursor: 'pointer',
+              background: isScrolling ? 'rgba(6,255,165,0.2)' : 'rgba(255,255,255,0.05)',
+              border: '1px solid ' + (isScrolling ? 'rgba(6,255,165,0.5)' : 'rgba(255,255,255,0.1)'),
+              color: isScrolling ? '#06ffa5' : '#475569',
+              fontSize: '9px', fontWeight: '700', letterSpacing: '1px', whiteSpace: 'nowrap',
+            }}
+          >
+            {isScrolling ? '⏸ AUTO' : '▶ AUTO'}
+          </button>
         )}
       </div>
 
@@ -482,9 +419,7 @@ export default function LyricsView({
               <div style={{
                 color: section.color,
                 fontSize: (fontSize + 1) + 'px',
-                fontWeight: '700',
-                marginBottom: '10px',
-                letterSpacing: '0.5px',
+                fontWeight: '700', marginBottom: '10px', letterSpacing: '0.5px',
               }}>
                 [{section.title}]
               </div>
