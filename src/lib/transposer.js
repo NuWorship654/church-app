@@ -37,11 +37,10 @@ export const isChordLine = (line) => {
   // Secciones [Verso 1] → nunca acordes
   if (/^\[[^\]]+\]$/.test(trimmed)) return false
 
-  // Líneas con // que tienen palabras en español → letra
-  // Ej: "//A danzar//", "//Y será llena la tierra//"
+  // Líneas con // que tienen palabras → letra
   if (/^\/\//.test(trimmed)) {
-    const inner    = trimmed.replace(/^\/+|\/+$/g, '').trim()
-    const words    = inner.split(/\s+/).filter(Boolean)
+    const inner = trimmed.replace(/^\/+|\/+$/g, '').trim()
+    const words = inner.split(/\s+/).filter(Boolean)
     const nonChord = words.filter(w => {
       const c = cleanToken(w)
       return c && !CHORD_CORE.test(c)
@@ -53,31 +52,39 @@ export const isChordLine = (line) => {
   if (tokens.length === 0) return false
 
   let chordCount    = 0
+  let nonChordCount = 0
   let bareNoteCount = 0
 
   for (const token of tokens) {
+    // Ignorar separadores puros como "-", "/", "|"
+    if (/^[-/|,]+$/.test(token)) continue
+
     const clean = cleanToken(token)
     if (!clean) continue
+
     if (CHORD_CORE.test(clean)) {
       chordCount++
       if (BARE_NOTE.test(clean)) bareNoteCount++
-      continue
-    }
-    const inner = clean.replace(/^\/+|\/+$/g, '')
-    if (inner && CHORD_CORE.test(inner)) {
-      chordCount++
-      if (BARE_NOTE.test(inner)) bareNoteCount++
-      continue
+    } else {
+      // Si el token no-acorde tiene 2+ caracteres es una palabra de letra → penalizar fuerte
+      if (clean.length >= 2) {
+        nonChordCount += 2  // peso doble: una palabra real descalifica la línea
+      } else {
+        nonChordCount++
+      }
     }
   }
 
-  const nonEmpty = tokens.filter(t => cleanToken(t).length > 0)
+  const total = chordCount + nonChordCount
+  if (total === 0) return false
 
-  // Un solo token que es nota sola (A, B, E...) → acorde solo válido en Nashville
-  if (nonEmpty.length === 1 && bareNoteCount === 1) return true
+  // Nota sola (A, B, E...) → solo es chord line si hay contexto musical
+  if (tokens.filter(t => cleanToken(t).length > 0).length === 1 && bareNoteCount === 1) {
+    return true
+  }
 
-  // Umbral 60%: mayoría de tokens deben ser acordes
-  return chordCount > 0 && (chordCount / nonEmpty.length) >= 0.6
+  // Umbral estricto: al menos 80% deben ser acordes (antes era 60%)
+  return chordCount > 0 && (chordCount / total) >= 0.80
 }
 
 // ── Transponer nota ───────────────────────────────────────────────────────────
