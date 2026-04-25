@@ -3,7 +3,7 @@ import { isChordLine } from '../../lib/transposer'
 import { parseSections, SECTION_COLORS } from '../../lib/lyrics'
 import ChordDiagram from './ChordDiagram'
 
-// ── Regex de acordes (nueva instancia por llamada → lastIndex siempre 0) ──────
+// ── Regex de acordes ──────────────────────────────────────────────────────────
 const CHORD_PATTERN = String.raw`(\[([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\]|\(([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)\)|(?<![A-Za-z])([A-G][#b]?(?:m(?:aj)?|min|dim|aug|sus[24]?|add\d*|M|mmaj)?[0-9]*(?:\/[A-G][#b]?)?)(?![A-Za-z\d]))`
 
 const extractChordTokens = (line) => {
@@ -94,6 +94,7 @@ function ChordToken({ chord, fontSize, onChordClick }) {
 function ChunkRow({ chordLine, lyricLine = '', fontSize, onChordClick }) {
   const tokens = extractChordTokens(chordLine)
 
+  // Sin acordes detectados → mostrar la línea como texto de acordes plano
   if (tokens.length === 0) {
     return (
       <div style={{ display: 'flex', flexWrap: 'wrap', lineHeight: '1', marginBottom: '4px' }}>
@@ -111,17 +112,19 @@ function ChunkRow({ chordLine, lyricLine = '', fontSize, onChordClick }) {
   let lastEnd = 0
 
   tokens.forEach(({ chord, index, end }, i) => {
+    // Espacio entre el fin del acorde anterior y el inicio de este
     if (index > lastEnd) {
       segments.push({ chord: null, lyric: lyricLine.slice(lastEnd, index) || ' ' })
     }
-    // FIX: usar chordLine.length como límite del último acorde para que
-    // la letra que va más allá de la línea de acordes no quede pegada al acorde.
+    // Letra que corresponde a este acorde: desde su posición hasta donde empieza el siguiente
+    // IMPORTANTE: el límite es chordLine.length, no lyricLine.length
+    // Así evitamos que el último acorde "consuma" toda la letra sobrante
     const nextStart = tokens[i + 1]?.index ?? chordLine.length
     segments.push({ chord, lyric: lyricLine.slice(index, nextStart) })
     lastEnd = end
   })
 
-  // Letra sobrante más allá del final de la línea de acordes → sin acorde encima
+  // Letra que queda MÁS ALLÁ del fin de la línea de acordes → sin acorde encima
   const tail = lyricLine.slice(chordLine.length)
   if (tail) segments.push({ chord: null, lyric: tail })
 
@@ -159,6 +162,7 @@ function LyricsContent({ lines, showingChords, fontSize, onChordClick }) {
 
     if (showingChords && isChordLine(line)) {
       const next = lines[i + 1]
+      // La siguiente línea es letra solo si: existe, no es chord line, y no está vacía
       const hasLyricNext = next !== undefined && !isChordLine(next) && next.trim() !== ''
       items.push(
         <ChunkRow
@@ -169,6 +173,7 @@ function LyricsContent({ lines, showingChords, fontSize, onChordClick }) {
           onChordClick={onChordClick}
         />
       )
+      // Consumir la línea de letra solo si efectivamente la usamos
       i += hasLyricNext ? 2 : 1
     } else {
       items.push(

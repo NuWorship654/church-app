@@ -37,7 +37,10 @@ export const isChordLine = (line) => {
   // Secciones [Verso 1] → nunca acordes
   if (/^\[[^\]]+\]$/.test(trimmed)) return false
 
-  // Líneas con // que tienen palabras → letra
+  // Líneas con ///C#m/// (acordes con slashes decorativos) → siempre acorde
+  if (/^\/\/\/[A-G]/.test(trimmed)) return true
+
+  // Líneas con // → solo son acordes si todos los tokens son acordes
   if (/^\/\//.test(trimmed)) {
     const inner = trimmed.replace(/^\/+|\/+$/g, '').trim()
     const words = inner.split(/\s+/).filter(Boolean)
@@ -56,7 +59,7 @@ export const isChordLine = (line) => {
   let bareNoteCount = 0
 
   for (const token of tokens) {
-    // Ignorar separadores puros como "-", "/", "|"
+    // Ignorar separadores puros: "-", "/", "|", ","
     if (/^[-/|,]+$/.test(token)) continue
 
     const clean = cleanToken(token)
@@ -66,24 +69,19 @@ export const isChordLine = (line) => {
       chordCount++
       if (BARE_NOTE.test(clean)) bareNoteCount++
     } else {
-      // Si el token no-acorde tiene 2+ caracteres es una palabra de letra → penalizar fuerte
-      if (clean.length >= 2) {
-        nonChordCount += 2  // peso doble: una palabra real descalifica la línea
-      } else {
-        nonChordCount++
-      }
+      // Palabras de 2+ letras → muy probablemente letra, penalizar fuerte
+      nonChordCount += clean.length >= 2 ? 2 : 1
     }
   }
 
   const total = chordCount + nonChordCount
   if (total === 0) return false
 
-  // Nota sola (A, B, E...) → solo es chord line si hay contexto musical
-  if (tokens.filter(t => cleanToken(t).length > 0).length === 1 && bareNoteCount === 1) {
-    return true
-  }
+  // Un único token que es nota sola → válido (ej: intro con "A" solo)
+  const nonEmptyTokens = tokens.filter(t => cleanToken(t).length > 0)
+  if (nonEmptyTokens.length === 1 && bareNoteCount === 1) return true
 
-  // Umbral estricto: al menos 80% deben ser acordes (antes era 60%)
+  // Umbral estricto: 80% deben ser acordes
   return chordCount > 0 && (chordCount / total) >= 0.80
 }
 
@@ -174,7 +172,7 @@ export const transposeText = (text, semitones, useFlats = false) => {
     const trimmed = line.trim()
     const toks    = trimmed.split(/\s+/).filter(Boolean)
     if (toks.length === 1 && BARE_NOTE.test(cleanToken(toks[0]))) {
-      const nextLine    = lines[idx + 1] ?? ''
+      const nextLine     = lines[idx + 1] ?? ''
       const nextHasWords = nextLine.trim().split(/\s+/).some(t => {
         const c = cleanToken(t)
         return c && !CHORD_CORE.test(c)
