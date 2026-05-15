@@ -18,7 +18,11 @@ export default function Profile() {
   const [stats, setStats]       = useState({ songs: 0, services: 0, rehearsals: 0 })
 
   useEffect(() => {
-    if (profile) setForm({ full_name: profile.full_name || '', phone: profile.phone || '', instrument: profile.instrument || '' })
+    if (profile) setForm({
+      full_name:  profile.full_name  || '',
+      phone:      profile.phone      || '',
+      instrument: profile.instrument || '',
+    })
   }, [profile])
 
   useEffect(() => {
@@ -34,9 +38,16 @@ export default function Profile() {
     fetchStats()
   }, [user])
 
+  // ── Guardar perfil — todos los campos son opcionales ─────────────────────
   const handleSave = async e => {
-    e.preventDefault(); setSaving(true)
-    await supabase.from('profiles').update(form).eq('id', user.id)
+    e.preventDefault()
+    setSaving(true)
+    await supabase.from('profiles').upsert({
+      id: user.id,
+      full_name:  form.full_name  || null,
+      phone:      form.phone      || null,
+      instrument: form.instrument || null,
+    }, { onConflict: 'id' })
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
@@ -105,9 +116,9 @@ export default function Profile() {
           {/* Mini stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
             {[
-              { label: 'Favoritas', value: stats.songs,      icon: '★', color: '#f59e0b' },
-              { label: 'Servicios', value: stats.services,   icon: '📅', color: '#00d4ff' },
-              { label: 'Ensayos',   value: stats.rehearsals, icon: '🎸', color: '#f59e0b' },
+              { label: 'Favoritas', value: stats.songs,      color: '#f59e0b' },
+              { label: 'Servicios', value: stats.services,   color: '#00d4ff' },
+              { label: 'Ensayos',   value: stats.rehearsals, color: '#f59e0b' },
             ].map((s, i) => (
               <div key={i} style={{ textAlign: 'center', padding: '10px 6px', borderRadius: '10px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.04)' }}>
                 <p style={{ margin: '0 0 2px', fontSize: '18px', fontWeight: '700', color: s.color, fontFamily: 'Orbitron, sans-serif' }}>{s.value}</p>
@@ -117,25 +128,38 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Formulario */}
+        {/* Formulario — todos opcionales */}
         <div style={{ padding: '18px 20px' }}>
-          <p style={{ color: '#475569', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 14px' }}>INFORMACIÓN PERSONAL</p>
+          <p style={{ color: '#475569', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 4px' }}>INFORMACIÓN PERSONAL</p>
+          <p style={{ color: '#334155', fontSize: '11px', margin: '0 0 14px' }}>Todos los campos son opcionales</p>
           <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '13px' }}>
             <div>
               <label style={labelStyle}>Nombre completo</label>
-              <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
-                className="input-field" placeholder="Tu nombre completo" />
+              <input
+                value={form.full_name}
+                onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
+                className="input-field" placeholder="Tu nombre completo"
+              />
             </div>
             <div>
               <label style={labelStyle}>Teléfono</label>
-              <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                className="input-field" placeholder="+52 000 000 0000" type="tel" />
+              <input
+                value={form.phone}
+                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                className="input-field" placeholder="+52 000 000 0000" type="tel"
+              />
             </div>
             <div>
               <label style={labelStyle}>Instrumento principal</label>
-              <select value={form.instrument} onChange={e => setForm(f => ({ ...f, instrument: e.target.value }))}
-                className="input-field" style={{ cursor: 'pointer' }}>
-                <option value="">Selecciona un instrumento</option>
+              <p style={{ color: '#475569', fontSize: '10px', margin: '-4px 0 8px', lineHeight: '1.4' }}>
+                Si seleccionas <span style={{ color: '#a78bfa' }}>Voz</span>, la app mostrará solo la letra por defecto al abrir canciones
+              </p>
+              <select
+                value={form.instrument}
+                onChange={e => setForm(f => ({ ...f, instrument: e.target.value }))}
+                className="input-field" style={{ cursor: 'pointer' }}
+              >
+                <option value="">— Sin instrumento —</option>
                 {INSTRUMENTS.map(i => <option key={i} value={i}>{i}</option>)}
               </select>
             </div>
@@ -160,7 +184,9 @@ export default function Profile() {
           <div>
             <label style={{ ...labelStyle, color: '#64748b' }}>Nueva contraseña</label>
             <div style={{ position: 'relative' }}>
-              <input type={showPass ? 'text' : 'password'} value={password}
+              <input
+                type={showPass ? 'text' : 'password'}
+                value={password}
                 onChange={e => setPassword(e.target.value)}
                 className="input-field" placeholder="Mínimo 6 caracteres"
                 style={{ paddingRight: '48px' }} autoComplete="new-password"
