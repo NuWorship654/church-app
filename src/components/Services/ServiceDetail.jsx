@@ -1,11 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 import SongViewer from '../Songs/SongViewer'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import {
+  DndContext, closestCenter,
+  PointerSensor, TouchSensor,
+  useSensor, useSensors
+} from '@dnd-kit/core'
+import {
+  SortableContext, horizontalListSortingStrategy,
+  useSortable, arrayMove
+} from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import jsPDF from 'jspdf'
 dayjs.locale('es')
@@ -22,7 +30,7 @@ function SortableTab({ ss, index, isActive, onClick, canEdit, onRemove }) {
         transition: 'all 0.2s', boxShadow: isActive ? '0 0 12px rgba(0,212,255,0.15)' : 'none',
         display: 'flex', alignItems: 'center', gap: '5px', maxWidth: '140px'
       }}>
-        <span {...listeners} style={{ cursor: 'grab', color: '#475569', fontSize: '11px', flexShrink: 0 }}>⠿</span>
+        <span {...listeners} style={{ cursor: 'grab', touchAction: 'none', color: '#475569', fontSize: '14px', flexShrink: 0, padding: '2px 4px' }}>⠿</span>
         <span style={{
           width: '16px', height: '16px', borderRadius: '50%', flexShrink: 0,
           background: isActive ? 'rgba(0,212,255,0.3)' : 'rgba(255,255,255,0.05)',
@@ -51,6 +59,7 @@ function SortableTab({ ss, index, isActive, onClick, canEdit, onRemove }) {
 
 export default function ServiceDetail({ service, canEdit, isPastor, onRefresh }) {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [songs,           setSongs]           = useState([])
   const [allSongs,        setAllSongs]        = useState([])
   const [activeSongIndex, setActiveSongIndex] = useState(0)
@@ -64,11 +73,11 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
   const [isMobile,        setIsMobile]        = useState(window.innerWidth <= 768)
   const [sendingMsg,      setSendingMsg]      = useState(false)
   const [sendingComment,  setSendingComment]  = useState(false)
-  const [showEditForm,    setShowEditForm]    = useState(false)
   const [showCopyFrom,    setShowCopyFrom]    = useState(false)
   const [otherServices,   setOtherServices]   = useState([])
   const [copying,         setCopying]         = useState(false)
   const [copySuccess,     setCopySuccess]     = useState(false)
+  const [headerCollapsed, setHeaderCollapsed] = useState(false)
   const chatEndRef = useRef(null)
 
   useEffect(() => {
@@ -77,12 +86,16 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  // ── TouchSensor para móvil + PointerSensor para desktop ──────────────────
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor,   { activationConstraint: { delay: 200, tolerance: 5 } })
+  )
 
   useEffect(() => {
     fetchServiceSongs(); fetchAllSongs(); fetchChat(); fetchComments()
     setActiveSongIndex(0); setShowAddSong(false); setView('songs')
-    setShowCopyFrom(false); setCopySuccess(false)
+    setShowCopyFrom(false); setCopySuccess(false); setHeaderCollapsed(false)
   }, [service.id])
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMessages])
@@ -185,34 +198,22 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
     setNewComment(''); setSendingComment(false); fetchComments()
   }
 
-  // ── Copiar canciones desde otro servicio ──────────────────────────────────
   const copyFromService = async (sourceServiceId) => {
     setCopying(true)
     const { data: sourceSongs } = await supabase
       .from('service_songs').select('song_id, order_index')
       .eq('service_id', sourceServiceId).order('order_index')
-
     if (sourceSongs && sourceSongs.length > 0) {
-      // Filtrar duplicados
       const existingSongIds = songs.map(ss => ss.song_id)
       const newSongs = sourceSongs
         .filter(ss => !existingSongIds.includes(ss.song_id))
-        .map((ss, i) => ({
-          service_id:  service.id,
-          song_id:     ss.song_id,
-          order_index: songs.length + i
-        }))
-
-      if (newSongs.length > 0) {
-        await supabase.from('service_songs').insert(newSongs)
-      }
+        .map((ss, i) => ({ service_id: service.id, song_id: ss.song_id, order_index: songs.length + i }))
+      if (newSongs.length > 0) await supabase.from('service_songs').insert(newSongs)
       await fetchServiceSongs()
       setCopySuccess(true)
       setTimeout(() => setCopySuccess(false), 3000)
     }
-
-    setCopying(false)
-    setShowCopyFrom(false)
+    setCopying(false); setShowCopyFrom(false)
   }
 
   const exportPDF = () => {
@@ -253,9 +254,7 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
       const key = ss.songs?.preferred_key || ss.songs?.original_key || '?'
       text += `${i + 1}. ${ss.songs?.title || ''} - ${key}\n`
     })
-    navigator.clipboard.writeText(text)
-      .then(() => alert('Lista copiada'))
-      .catch(() => {})
+    navigator.clipboard.writeText(text).then(() => alert('Lista copiada')).catch(() => {})
   }
 
   const availableSongs = allSongs.filter(s =>
@@ -263,14 +262,13 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
     s.title.toLowerCase().includes(search.toLowerCase())
   )
 
-  const activeSong = songs[activeSongIndex]?.songs || null
-  const hasPrev    = activeSongIndex > 0
-  const hasNext    = activeSongIndex < songs.length - 1
-  const goNext     = () => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))
-  const goPrev     = () => setActiveSongIndex(i => Math.max(0, i - 1))
-
-  const isToday = dayjs(service.date).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD')
-  const isPast  = dayjs(service.date).isBefore(dayjs())
+  const activeSong    = songs[activeSongIndex]?.songs || null
+  const hasPrev       = activeSongIndex > 0
+  const hasNext       = activeSongIndex < songs.length - 1
+  const goNext        = () => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))
+  const goPrev        = () => setActiveSongIndex(i => Math.max(0, i - 1))
+  const isToday       = dayjs(service.date).format('YYYY-MM-DD') === dayjs().format('YYYY-MM-DD')
+  const isPast        = dayjs(service.date).isBefore(dayjs())
 
   const TabBtn = ({ id, label }) => (
     <button onClick={() => setView(id)} style={{
@@ -289,64 +287,72 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
       borderRadius: '14px', overflow: 'hidden', animation: 'fadeInUp 0.3s ease forwards'
     }}>
 
-      {/* ── Header ── */}
+      {/* ── Header compacto para móvil ── */}
       <div style={{
         background: 'linear-gradient(135deg, rgba(0,212,255,0.08), rgba(124,58,237,0.06))',
-        borderBottom: '1px solid rgba(0,212,255,0.1)', padding: '14px 16px'
+        borderBottom: '1px solid rgba(0,212,255,0.1)', padding: '12px 14px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+        {/* Fila 1: título + badges + toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '4px', flexWrap: 'wrap' }}>
-              <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#e2e8f0', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <h2 style={{
+                fontFamily: 'Orbitron, sans-serif', fontSize: isMobile ? '13px' : '14px',
+                color: '#e2e8f0', margin: 0,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                maxWidth: isMobile ? '180px' : '300px'
+              }}>
                 {service.title}
               </h2>
-              {isToday && (
-                <span style={{ fontSize: '9px', padding: '1px 7px', borderRadius: '20px', background: 'rgba(6,255,165,0.2)', border: '1px solid rgba(6,255,165,0.4)', color: '#06ffa5', fontWeight: '700', flexShrink: 0 }}>HOY</span>
-              )}
-              {isPast && !isToday && (
-                <span style={{ fontSize: '9px', padding: '1px 7px', borderRadius: '20px', background: 'rgba(100,116,139,0.15)', border: '1px solid rgba(100,116,139,0.2)', color: '#64748b', fontWeight: '700', flexShrink: 0 }}>PASADO</span>
-              )}
+              {isToday && <span style={{ fontSize: '9px', padding: '1px 7px', borderRadius: '20px', background: 'rgba(6,255,165,0.2)', border: '1px solid rgba(6,255,165,0.4)', color: '#06ffa5', fontWeight: '700', flexShrink: 0 }}>HOY</span>}
+              {isPast && !isToday && <span style={{ fontSize: '9px', padding: '1px 7px', borderRadius: '20px', background: 'rgba(100,116,139,0.15)', border: '1px solid rgba(100,116,139,0.2)', color: '#64748b', fontWeight: '700', flexShrink: 0 }}>PASADO</span>}
             </div>
-            <p style={{ color: '#00d4ff', fontSize: '11px', margin: '0 0 2px', textTransform: 'capitalize' }}>
-              📅 {dayjs(service.date).format('dddd DD [de] MMMM · HH:mm')}
+            <p style={{ color: '#00d4ff', fontSize: '11px', margin: '2px 0 0', textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              📅 {dayjs(service.date).format('ddd DD MMM · HH:mm')}
             </p>
-            {service.location && (
-              <p style={{ color: '#64748b', fontSize: '11px', margin: '0 0 4px' }}>📍 {service.location}</p>
-            )}
-            {service.description && (
-              <p style={{ color: '#94a3b8', fontSize: '11px', margin: '6px 0 0', padding: '7px 10px', borderRadius: '7px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.04)', wordBreak: 'break-word' }}>
-                {service.description}
-              </p>
+            {service.location && !headerCollapsed && (
+              <p style={{ color: '#64748b', fontSize: '11px', margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📍 {service.location}</p>
             )}
           </div>
+          {/* Botón colapsar en móvil */}
+          {isMobile && (
+            <button onClick={() => setHeaderCollapsed(c => !c)} style={{
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+              color: '#64748b', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer',
+              fontSize: '11px', flexShrink: 0
+            }}>
+              {headerCollapsed ? '▼' : '▲'}
+            </button>
+          )}
+        </div>
 
-          {/* Acciones */}
-          <div style={{ display: 'flex', gap: '5px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {canEdit && (
-              <button onClick={() => setShowEditForm(true)} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)', color: '#a78bfa', fontSize: '10px', fontWeight: '600' }}>
-                ✎ EDITAR
-              </button>
-            )}
-            {canEdit && (
-              <button onClick={() => { setShowCopyFrom(s => !s); fetchOtherServices() }} style={{
-                padding: '5px 9px', borderRadius: '7px', cursor: 'pointer',
-                background: copySuccess ? 'rgba(6,255,165,0.15)' : showCopyFrom ? 'rgba(6,255,165,0.12)' : 'rgba(6,255,165,0.08)',
-                border: '1px solid ' + (copySuccess ? 'rgba(6,255,165,0.5)' : 'rgba(6,255,165,0.25)'),
-                color: '#06ffa5', fontSize: '10px', fontWeight: '600', whiteSpace: 'nowrap'
-              }}>
-                {copySuccess ? '✓ COPIADO' : '📋 COPIAR DE'}
-              </button>
-            )}
-            <button onClick={shareWhatsApp} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.25)', color: '#25d366', fontSize: '10px', fontWeight: '600' }}>
-              WhatsApp
+        {/* Descripción — solo si no colapsado */}
+        {!headerCollapsed && service.description && (
+          <p style={{ color: '#94a3b8', fontSize: '11px', margin: '6px 0', padding: '7px 10px', borderRadius: '7px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.04)', wordBreak: 'break-word' }}>
+            {service.description}
+          </p>
+        )}
+
+        {/* Fila de acciones — scroll horizontal en móvil */}
+        <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' }}>
+          {canEdit && (
+            <button onClick={() => navigate(`/services/${service.id}/edit`)} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)', color: '#a78bfa', fontSize: '10px', fontWeight: '600', flexShrink: 0 }}>
+              ✎ EDITAR
             </button>
-            <button onClick={copyList} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(6,255,165,0.08)', border: '1px solid rgba(6,255,165,0.25)', color: '#06ffa5', fontSize: '10px', fontWeight: '600' }}>
-              COPIAR
+          )}
+          {canEdit && (
+            <button onClick={() => { setShowCopyFrom(s => !s); fetchOtherServices() }} style={{
+              padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', flexShrink: 0,
+              background: copySuccess ? 'rgba(6,255,165,0.15)' : showCopyFrom ? 'rgba(6,255,165,0.12)' : 'rgba(6,255,165,0.08)',
+              border: '1px solid ' + (copySuccess ? 'rgba(6,255,165,0.5)' : 'rgba(6,255,165,0.25)'),
+              color: '#06ffa5', fontSize: '10px', fontWeight: '600', whiteSpace: 'nowrap'
+            }}>
+              {copySuccess ? '✓ COPIADO' : '📋 COPIAR DE'}
             </button>
-            <button onClick={exportPDF} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)', color: '#a78bfa', fontSize: '10px', fontWeight: '600' }}>
-              PDF
-            </button>
-          </div>
+          )}
+          <button onClick={shareWhatsApp} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.25)', color: '#25d366', fontSize: '10px', fontWeight: '600', flexShrink: 0 }}>WhatsApp</button>
+          <button onClick={copyList} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(6,255,165,0.08)', border: '1px solid rgba(6,255,165,0.25)', color: '#06ffa5', fontSize: '10px', fontWeight: '600', flexShrink: 0 }}>COPIAR</button>
+          <button onClick={exportPDF} style={{ padding: '5px 9px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.25)', color: '#a78bfa', fontSize: '10px', fontWeight: '600', flexShrink: 0 }}>PDF</button>
         </div>
       </div>
 
@@ -357,19 +363,16 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
         <TabBtn id="comments" label={`📝 NOTAS${comments.length ? ' (' + comments.length + ')' : ''}`} />
       </div>
 
-      <div style={{ padding: '14px 16px' }}>
+      <div style={{ padding: '12px 14px' }}>
 
         {/* ── CANCIONES ── */}
         {view === 'songs' && (
           <div>
-
             {/* Panel copiar desde otro servicio */}
             {showCopyFrom && canEdit && (
               <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(6,255,165,0.2)', borderRadius: '10px', padding: '12px', marginBottom: '14px', animation: 'fadeInUp 0.2s ease forwards' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <p style={{ color: '#06ffa5', fontSize: '10px', letterSpacing: '1px', margin: 0, textTransform: 'uppercase', fontWeight: '700' }}>
-                    📋 COPIAR CANCIONES DESDE...
-                  </p>
+                  <p style={{ color: '#06ffa5', fontSize: '10px', letterSpacing: '1px', margin: 0, textTransform: 'uppercase', fontWeight: '700' }}>📋 COPIAR CANCIONES DESDE...</p>
                   <button onClick={() => setShowCopyFrom(false)} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '16px' }}>×</button>
                 </div>
                 <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -379,34 +382,25 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
                       cursor: copying ? 'wait' : 'pointer',
                       background: 'transparent', border: '1px solid rgba(255,255,255,0.06)',
                       color: '#e2e8f0', fontSize: '13px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      gap: '8px', transition: 'all 0.15s'
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', transition: 'all 0.15s'
                     }}
                     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(6,255,165,0.07)'; e.currentTarget.style.borderColor = 'rgba(6,255,165,0.2)' }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)' }}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{svc.title}</span>
-                      <span style={{ color: '#475569', fontSize: '10px', flexShrink: 0 }}>
-                        {dayjs(svc.date).format('DD/MM/YY')}
-                      </span>
+                      <span style={{ color: '#475569', fontSize: '10px', flexShrink: 0 }}>{dayjs(svc.date).format('DD/MM/YY')}</span>
                     </button>
                   ))}
-                  {otherServices.length === 0 && (
-                    <p style={{ color: '#475569', fontSize: '12px', margin: 0, textAlign: 'center', padding: '10px' }}>
-                      No hay otros servicios
-                    </p>
-                  )}
+                  {otherServices.length === 0 && <p style={{ color: '#475569', fontSize: '12px', margin: 0, textAlign: 'center', padding: '10px' }}>No hay otros servicios</p>}
                 </div>
-                <p style={{ color: '#334155', fontSize: '10px', margin: '8px 0 0', textAlign: 'center' }}>
-                  Los duplicados serán omitidos automáticamente
-                </p>
+                <p style={{ color: '#334155', fontSize: '10px', margin: '8px 0 0', textAlign: 'center' }}>Los duplicados serán omitidos automáticamente</p>
               </div>
             )}
 
-            {/* Tabs de canciones con drag */}
+            {/* Tabs de canciones con drag — TouchSensor activo */}
             {songs.length > 0 && (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={songs.map(s => s.id)} strategy={horizontalListSortingStrategy}>
-                  <div style={{ display: 'flex', gap: '5px', marginBottom: '14px', overflowX: 'auto', paddingBottom: '4px' }}>
+                  <div style={{ display: 'flex', gap: '5px', marginBottom: '14px', overflowX: 'auto', paddingBottom: '4px', WebkitOverflowScrolling: 'touch' }}>
                     {songs.map((ss, i) => (
                       <SortableTab key={ss.id} ss={ss} index={i}
                         isActive={activeSongIndex === i}
@@ -433,9 +427,7 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
             {/* Agregar canción */}
             {showAddSong && (
               <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(6,255,165,0.2)', borderRadius: '10px', padding: '12px', marginBottom: '14px', animation: 'fadeInUp 0.2s ease forwards' }}>
-                <p style={{ color: '#06ffa5', fontSize: '10px', letterSpacing: '1px', margin: '0 0 8px', textTransform: 'uppercase' }}>
-                  SELECCIONA UNA CANCIÓN
-                </p>
+                <p style={{ color: '#06ffa5', fontSize: '10px', letterSpacing: '1px', margin: '0 0 8px', textTransform: 'uppercase' }}>SELECCIONA UNA CANCIÓN</p>
                 <input type="text" placeholder="Buscar canción..." value={search}
                   onChange={e => setSearch(e.target.value)}
                   className="input-field" style={{ marginBottom: '8px', fontSize: '13px' }} />
@@ -445,8 +437,7 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
                       textAlign: 'left', padding: '9px 12px', borderRadius: '7px',
                       background: 'transparent', border: '1px solid transparent',
                       color: '#e2e8f0', cursor: 'pointer', fontSize: '13px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      gap: '8px', transition: 'all 0.15s'
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', transition: 'all 0.15s'
                     }}
                     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(6,255,165,0.08)'; e.currentTarget.style.borderColor = 'rgba(6,255,165,0.2)' }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}>
@@ -487,6 +478,8 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
                 onNext={goNext}
                 onPrev={goPrev}
                 serviceSongs={songs.map(ss => ss.songs)}
+                canEdit={canEdit}
+                onEdit={() => navigate(`/songs/${activeSong.id}/edit`)}
               />
             )}
           </div>
@@ -525,7 +518,7 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
             <div style={{ display: 'flex', gap: '7px' }}>
               <input value={newMessage} onChange={e => setNewMessage(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                placeholder="Escribe un mensaje... (Enter para enviar)"
+                placeholder="Escribe un mensaje..."
                 className="input-field" style={{ flex: 1, fontSize: '13px' }} />
               <button onClick={sendMessage} disabled={sendingMsg || !newMessage.trim()} style={{
                 padding: '0 14px', borderRadius: '8px', cursor: 'pointer',
@@ -579,68 +572,6 @@ export default function ServiceDetail({ service, canEdit, isPastor, onRefresh })
             )}
           </div>
         )}
-      </div>
-
-      {/* Modal editar servicio */}
-      {showEditForm && canEdit && (
-        <EditServiceModal
-          service={service}
-          onClose={() => setShowEditForm(false)}
-          onSaved={() => { setShowEditForm(false); onRefresh && onRefresh() }}
-        />
-      )}
-    </div>
-  )
-}
-
-function EditServiceModal({ service, onClose, onSaved }) {
-  const [form, setForm] = useState({
-    title:       service.title       || '',
-    date:        service.date ? dayjs(service.date).format('YYYY-MM-DDTHH:mm') : '',
-    location:    service.location    || '',
-    description: service.description || '',
-  })
-  const [saving, setSaving] = useState(false)
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
-
-  const handleSubmit = async e => {
-    e.preventDefault(); setSaving(true)
-    await supabase.from('services').update({ ...form, updated_at: new Date() }).eq('id', service.id)
-    setSaving(false); onSaved()
-  }
-
-  const L = {
-    display: 'block', color: '#94a3b8', fontSize: '11px',
-    letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px'
-  }
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 50, padding: '16px', backdropFilter: 'blur(6px)', overflowY: 'auto' }}>
-      <div style={{ background: 'linear-gradient(135deg, #0d1b2a, #0a1628)', border: '1px solid rgba(0,212,255,0.25)', borderRadius: '20px', width: '100%', maxWidth: '500px', animation: 'fadeInUp 0.3s ease forwards', margin: 'auto', overflow: 'hidden' }}>
-        <div style={{ background: 'linear-gradient(135deg, rgba(0,212,255,0.12), rgba(124,58,237,0.12))', borderBottom: '1px solid rgba(0,212,255,0.15)', padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: 'linear-gradient(135deg, rgba(0,212,255,0.2), rgba(124,58,237,0.2))', border: '1px solid rgba(0,212,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>📅</div>
-            <div>
-              <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '13px', color: '#00d4ff', margin: 0 }}>EDITAR SERVICIO</h2>
-              <p style={{ color: '#475569', fontSize: '11px', margin: 0 }}>Modifica los datos del servicio</p>
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontSize: '18px', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-        </div>
-        <div style={{ padding: '20px' }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div><label style={L}>Título *</label><input value={form.title} onChange={e => set('title', e.target.value)} required className="input-field" placeholder="Ej: Servicio dominical" /></div>
-            <div><label style={L}>📅 Fecha y hora *</label><input type="datetime-local" value={form.date} onChange={e => set('date', e.target.value)} required className="input-field" /></div>
-            <div><label style={L}>📍 Lugar</label><input value={form.location} onChange={e => set('location', e.target.value)} className="input-field" placeholder="Ej: Templo principal" /></div>
-            <div><label style={L}>📝 Descripción</label><textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3} className="input-field" style={{ resize: 'vertical', lineHeight: '1.6' }} placeholder="Tema, notas, detalles..." /></div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button type="button" onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(100,116,139,0.3)', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>CANCELAR</button>
-              <button type="submit" disabled={saving} style={{ flex: 2, padding: '11px', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', background: saving ? 'rgba(0,212,255,0.1)' : 'linear-gradient(135deg, #00d4ff, #7c3aed)', border: saving ? '1px solid rgba(0,212,255,0.2)' : 'none', color: saving ? '#00d4ff' : 'white', fontSize: '13px', fontWeight: '700' }}>
-                {saving ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
-              </button>
-            </div>
-          </form>
-        </div>
       </div>
     </div>
   )

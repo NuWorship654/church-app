@@ -15,6 +15,8 @@ export default function Services() {
   const [showDetail,    setShowDetail]    = useState(false)
   const [search,        setSearch]        = useState('')
   const [view,          setView]          = useState('list')
+  const [sortBy,        setSortBy]        = useState('date')
+  const [sortDir,       setSortDir]       = useState('asc')
   const [calendarMonth, setCalendarMonth] = useState(dayjs())
   const { canEdit, isPastor } = useAuth()
 
@@ -34,10 +36,29 @@ export default function Services() {
     if (selected?.id === id) { setSelected(null); setShowDetail(false) }
   }
 
-  const filtered = services.filter(s =>
-    s.title.toLowerCase().includes(search.toLowerCase()) ||
-    s.location?.toLowerCase().includes(search.toLowerCase())
-  )
+  const toggleSort = (field) => {
+    if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(field); setSortDir('asc') }
+  }
+
+  const filtered = services
+    .filter(s =>
+      s.title.toLowerCase().includes(search.toLowerCase()) ||
+      s.location?.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      let valA, valB
+      switch (sortBy) {
+        case 'title':    valA = a.title.toLowerCase(); valB = b.title.toLowerCase(); break
+        case 'location': valA = (a.location || '').toLowerCase(); valB = (b.location || '').toLowerCase(); break
+        case 'date':
+        default:         valA = new Date(a.date); valB = new Date(b.date)
+      }
+      if (valA < valB) return sortDir === 'asc' ? -1 : 1
+      if (valA > valB) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+
   const upcoming = filtered.filter(s => dayjs(s.date).isAfter(dayjs().subtract(1, 'day')))
   const past     = filtered.filter(s => dayjs(s.date).isBefore(dayjs().subtract(1, 'day')))
 
@@ -51,6 +72,19 @@ export default function Services() {
     if (!day) return []
     return services.filter(s => dayjs(s.date).format('YYYY-MM-DD') === calendarMonth.date(day).format('YYYY-MM-DD'))
   }
+
+  const SortBtn = ({ field, label }) => (
+    <button onClick={() => toggleSort(field)} style={{
+      display: 'flex', alignItems: 'center', gap: '3px',
+      padding: '4px 8px', borderRadius: '6px', cursor: 'pointer',
+      background: sortBy === field ? 'rgba(0,212,255,0.12)' : 'rgba(0,0,0,0.2)',
+      border: '1px solid ' + (sortBy === field ? 'rgba(0,212,255,0.4)' : 'rgba(0,212,255,0.08)'),
+      color: sortBy === field ? '#00d4ff' : '#475569',
+      fontSize: '10px', fontWeight: '700', transition: 'all 0.2s', whiteSpace: 'nowrap'
+    }}>
+      {label} <span style={{ fontSize: '9px' }}>{sortBy === field ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+    </button>
+  )
 
   return (
     <div style={{ animation: 'fadeInUp 0.5s ease forwards', width: '100%', overflowX: 'hidden' }}>
@@ -67,16 +101,21 @@ export default function Services() {
             <button onClick={() => setView('list')} style={{ padding: '6px 10px', border: 'none', cursor: 'pointer', background: view === 'list' ? 'rgba(0,212,255,0.15)' : 'transparent', color: view === 'list' ? '#00d4ff' : '#475569', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>☰ LISTA</button>
             <button onClick={() => setView('calendar')} style={{ padding: '6px 10px', border: 'none', cursor: 'pointer', background: view === 'calendar' ? 'rgba(0,212,255,0.15)' : 'transparent', color: view === 'calendar' ? '#00d4ff' : '#475569', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>📅 MES</button>
           </div>
-          {/* ── CAMBIO: navega a página completa ── */}
           {canEdit && <button className="btn-primary" onClick={() => navigate('/services/new')}>+ NUEVO</button>}
         </div>
       </div>
 
-      {/* Buscador */}
+      {/* Buscador + ordenar */}
       {view === 'list' && !showDetail && (
-        <div style={{ marginBottom: '14px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
           <input type="text" placeholder="Buscar servicio o lugar..."
             value={search} onChange={e => setSearch(e.target.value)} className="input-field" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ color: '#334155', fontSize: '10px', letterSpacing: '1px' }}>ORDENAR:</span>
+            <SortBtn field="date"     label="FECHA" />
+            <SortBtn field="title"    label="NOMBRE" />
+            <SortBtn field="location" label="LUGAR" />
+          </div>
         </div>
       )}
 
@@ -192,8 +231,7 @@ function ServiceCard({ service, selected, onSelect, canEdit, onEdit, onDelete, i
       transition: 'all 0.2s', opacity: past ? 0.65 : 1, position: 'relative', overflow: 'hidden'
     }}
     onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'rgba(0,212,255,0.35)'; e.currentTarget.style.transform = 'translateX(3px)' } }}
-    onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = isToday ? 'rgba(6,255,165,0.4)' : 'rgba(0,212,255,0.1)'; e.currentTarget.style.transform = 'translateX(0)' } }}
-    >
+    onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = isToday ? 'rgba(6,255,165,0.4)' : 'rgba(0,212,255,0.1)'; e.currentTarget.style.transform = 'translateX(0)' } }}>
       {!past && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: isToday ? '#06ffa5' : isSoon ? '#f59e0b' : 'rgba(0,212,255,0.3)', borderRadius: '3px 0 0 3px' }} />}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', paddingLeft: past ? 0 : '6px' }}>
         <div style={{ flex: 1, minWidth: 0 }}>

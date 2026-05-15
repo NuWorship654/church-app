@@ -3,6 +3,44 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import dayjs from 'dayjs'
 import SongViewer from '../components/Songs/SongViewer'
+import {
+  DndContext, closestCenter,
+  PointerSensor, TouchSensor,
+  useSensor, useSensors
+} from '@dnd-kit/core'
+import {
+  SortableContext, verticalListSortingStrategy,
+  useSortable, arrayMove
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
+function SortableSongTab({ ss, index, isActive, onClick, canEdit, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: ss.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, flexShrink: 0 }
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <button onClick={onClick} style={{
+        padding: '7px 10px', borderRadius: '8px', cursor: 'pointer',
+        background: isActive ? 'rgba(245,158,11,0.15)' : 'rgba(0,0,0,0.3)',
+        border: '1px solid ' + (isActive ? 'rgba(245,158,11,0.5)' : 'rgba(245,158,11,0.1)'),
+        transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '5px', maxWidth: '140px'
+      }}>
+        <span {...listeners} style={{ cursor: 'grab', touchAction: 'none', color: '#475569', fontSize: '14px', flexShrink: 0, padding: '2px 4px' }}>⠿</span>
+        <span style={{ width: '16px', height: '16px', borderRadius: '50%', flexShrink: 0, background: isActive ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: '700', color: isActive ? '#f59e0b' : '#64748b' }}>{index + 1}</span>
+        <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
+          <p style={{ margin: 0, fontSize: '11px', fontWeight: '600', color: isActive ? '#e2e8f0' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>{ss.songs?.title}</p>
+          <p style={{ margin: 0, fontSize: '9px', color: isActive ? '#f59e0b' : '#475569' }}>{ss.songs?.original_key || '?'}</p>
+        </div>
+        {canEdit && (
+          <span onClick={e => { e.stopPropagation(); onRemove() }}
+            style={{ color: '#475569', cursor: 'pointer', fontSize: '11px', padding: '2px 3px', flexShrink: 0 }}
+            onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+            onMouseLeave={e => e.currentTarget.style.color = '#475569'}>×</span>
+        )}
+      </button>
+    </div>
+  )
+}
 
 export default function Rehearsals() {
   const [rehearsals,      setRehearsals]      = useState([])
@@ -17,7 +55,14 @@ export default function Rehearsals() {
   const [showDetail,      setShowDetail]      = useState(false)
   const [searchSong,      setSearchSong]      = useState('')
   const [isMobile,        setIsMobile]        = useState(window.innerWidth <= 768)
+  const [sortBy,          setSortBy]          = useState('date')
+  const [sortDir,         setSortDir]         = useState('asc')
   const { canEdit } = useAuth()
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor,   { activationConstraint: { delay: 200, tolerance: 5 } })
+  )
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
@@ -75,6 +120,17 @@ export default function Rehearsals() {
     })
   }
 
+  const handleSongDragEnd = async (event) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = songs.findIndex(s => s.id === active.id)
+    const newIndex = songs.findIndex(s => s.id === over.id)
+    const newSongs = arrayMove(songs, oldIndex, newIndex)
+    setSongs(newSongs)
+    if (oldIndex === activeSongIndex) setActiveSongIndex(newIndex)
+    await Promise.all(newSongs.map((s, i) => supabase.from('rehearsal_songs').update({ order_index: i }).eq('id', s.id)))
+  }
+
   const availableSongs = allSongs.filter(s =>
     !songs.find(ss => ss.song_id === s.id) &&
     s.title.toLowerCase().includes(searchSong.toLowerCase())
@@ -86,10 +142,40 @@ export default function Rehearsals() {
   const goNext     = () => setActiveSongIndex(i => Math.min(songs.length - 1, i + 1))
   const goPrev     = () => setActiveSongIndex(i => Math.max(0, i - 1))
 
-  const upcoming = rehearsals.filter(r => dayjs(r.date).isAfter(dayjs().subtract(1, 'day')))
-  const past     = rehearsals.filter(r => dayjs(r.date).isBefore(dayjs().subtract(1, 'day')))
+  // ── Ordenar ensayos ───────────────────────────────────────────────────────
+  const toggleSort = (field) => {
+    if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(field); setSortDir('asc') }
+  }
 
-  // ── Si showForm, mostrar formulario como página completa ──────────────────
+  const sortedRehearsals = [...rehearsals].sort((a, b) => {
+    let valA, valB
+    switch (sortBy) {
+      case 'title': valA = a.title.toLowerCase(); valB = b.title.toLowerCase(); break
+      case 'date':  valA = new Date(a.date); valB = new Date(b.date); break
+      default:      valA = new Date(a.date); valB = new Date(b.date)
+    }
+    if (valA < valB) return sortDir === 'asc' ? -1 : 1
+    if (valA > valB) return sortDir === 'asc' ? 1 : -1
+    return 0
+  })
+
+  const upcoming = sortedRehearsals.filter(r => dayjs(r.date).isAfter(dayjs().subtract(1, 'day')))
+  const past     = sortedRehearsals.filter(r => dayjs(r.date).isBefore(dayjs().subtract(1, 'day')))
+
+  const SortBtn = ({ field, label }) => (
+    <button onClick={() => toggleSort(field)} style={{
+      display: 'flex', alignItems: 'center', gap: '3px',
+      padding: '4px 8px', borderRadius: '6px', cursor: 'pointer',
+      background: sortBy === field ? 'rgba(245,158,11,0.12)' : 'rgba(0,0,0,0.2)',
+      border: '1px solid ' + (sortBy === field ? 'rgba(245,158,11,0.4)' : 'rgba(245,158,11,0.08)'),
+      color: sortBy === field ? '#f59e0b' : '#475569',
+      fontSize: '10px', fontWeight: '700', transition: 'all 0.2s', whiteSpace: 'nowrap'
+    }}>
+      {label} <span style={{ fontSize: '9px' }}>{sortBy === field ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+    </button>
+  )
+
   if (showForm) {
     return (
       <RehearsalForm
@@ -102,11 +188,11 @@ export default function Rehearsals() {
 
   const DetailPanel = () => (
     <div style={{ background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '12px', overflow: 'hidden' }}>
-      <div style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(6,255,165,0.06))', borderBottom: '1px solid rgba(245,158,11,0.15)', padding: '14px 16px' }}>
+      <div style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(6,255,165,0.06))', borderBottom: '1px solid rgba(245,158,11,0.15)', padding: '12px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#e2e8f0', margin: '0 0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.title}</h2>
-            <p style={{ color: '#f59e0b', fontSize: '11px', margin: '0 0 2px' }}>📅 {dayjs(selected.date).format('DD/MM/YYYY HH:mm')}</p>
+            <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '13px', color: '#e2e8f0', margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.title}</h2>
+            <p style={{ color: '#f59e0b', fontSize: '11px', margin: '0 0 1px' }}>📅 {dayjs(selected.date).format('DD/MM/YYYY HH:mm')}</p>
             {selected.location && <p style={{ color: '#64748b', fontSize: '11px', margin: 0 }}>📍 {selected.location}</p>}
           </div>
           {canEdit && (
@@ -116,11 +202,11 @@ export default function Rehearsals() {
           )}
         </div>
         {selected.description && (
-          <p style={{ color: '#94a3b8', fontSize: '12px', margin: '10px 0 0', padding: '8px 12px', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', wordBreak: 'break-word' }}>{selected.description}</p>
+          <p style={{ color: '#94a3b8', fontSize: '12px', margin: '8px 0 0', padding: '8px 12px', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', wordBreak: 'break-word' }}>{selected.description}</p>
         )}
       </div>
 
-      <div style={{ padding: '14px 16px' }}>
+      <div style={{ padding: '12px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
           <p style={{ color: '#f59e0b', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', margin: 0 }}>♪ CANCIONES ({songs.length})</p>
           {canEdit && (
@@ -147,25 +233,22 @@ export default function Rehearsals() {
           </div>
         )}
 
+        {/* Tabs de canciones con drag touch */}
         {songs.length > 0 && (
-          <div style={{ display: 'flex', gap: '5px', marginBottom: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
-            {songs.map((ss, i) => (
-              <button key={ss.id} onClick={() => setActiveSongIndex(i)} style={{ flexShrink: 0, padding: '7px 10px', borderRadius: '8px', cursor: 'pointer', background: activeSongIndex === i ? 'rgba(245,158,11,0.15)' : 'rgba(0,0,0,0.3)', border: '1px solid ' + (activeSongIndex === i ? 'rgba(245,158,11,0.5)' : 'rgba(245,158,11,0.1)'), transition: 'all 0.2s' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: activeSongIndex === i ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: activeSongIndex === i ? '#f59e0b' : '#64748b' }}>{i + 1}</span>
-                  <div>
-                    <p style={{ margin: 0, fontSize: '11px', fontWeight: '600', color: activeSongIndex === i ? '#e2e8f0' : '#94a3b8', whiteSpace: 'nowrap', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ss.songs?.title}</p>
-                    <p style={{ margin: 0, fontSize: '10px', color: activeSongIndex === i ? '#f59e0b' : '#475569' }}>{ss.songs?.original_key || '?'}</p>
-                  </div>
-                  {canEdit && (
-                    <span onClick={e => { e.stopPropagation(); removeSong(ss.id, i) }} style={{ color: '#475569', cursor: 'pointer', fontSize: '11px', padding: '2px 4px' }}
-                      onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                      onMouseLeave={e => e.currentTarget.style.color = '#475569'}>×</span>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSongDragEnd}>
+            <SortableContext items={songs.map(s => s.id)} strategy={horizontalListSortingStrategy}>
+              <div style={{ display: 'flex', gap: '5px', marginBottom: '12px', overflowX: 'auto', paddingBottom: '4px', WebkitOverflowScrolling: 'touch' }}>
+                {songs.map((ss, i) => (
+                  <SortableSongTab key={ss.id} ss={ss} index={i}
+                    isActive={activeSongIndex === i}
+                    onClick={() => setActiveSongIndex(i)}
+                    canEdit={canEdit}
+                    onRemove={() => removeSong(ss.id, i)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
 
         {songs.length === 0 && !showAddSong && (
@@ -185,16 +268,23 @@ export default function Rehearsals() {
 
   return (
     <div style={{ animation: 'fadeInUp 0.5s ease forwards', width: '100%', overflowX: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '8px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', gap: '8px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
           <div style={{ width: '6px', height: '36px', borderRadius: '3px', background: 'linear-gradient(180deg, #f59e0b, #06ffa5)', flexShrink: 0 }} />
           <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '20px', fontWeight: '700', color: '#e2e8f0', margin: 0 }}>ENSAYOS</h1>
           <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '20px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: '#f59e0b', flexShrink: 0 }}>{rehearsals.length}</span>
         </div>
-        {canEdit && (
-          <button className="btn-primary" onClick={() => { setEditing(null); setShowForm(true) }}>+ NUEVO</button>
-        )}
+        {canEdit && <button className="btn-primary" onClick={() => { setEditing(null); setShowForm(true) }}>+ NUEVO</button>}
       </div>
+
+      {/* Ordenar */}
+      {!showDetail && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
+          <span style={{ color: '#334155', fontSize: '10px', letterSpacing: '1px' }}>ORDENAR:</span>
+          <SortBtn field="date"  label="FECHA" />
+          <SortBtn field="title" label="NOMBRE" />
+        </div>
+      )}
 
       {showDetail && selected ? (
         <div>
@@ -259,8 +349,7 @@ function RehearsalCard({ rehearsal, selected, onSelect, canEdit, onEdit, onDelet
       transition: 'all 0.2s', opacity: past ? 0.65 : 1, overflow: 'hidden'
     }}
     onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.3)'; e.currentTarget.style.transform = 'translateX(3px)' } }}
-    onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.1)'; e.currentTarget.style.transform = 'translateX(0)' } }}
-    >
+    onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.1)'; e.currentTarget.style.transform = 'translateX(0)' } }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <p style={{ margin: '0 0 3px', fontWeight: '600', color: past ? '#94a3b8' : '#e2e8f0', fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rehearsal.title}</p>
@@ -303,7 +392,6 @@ function RehearsalForm({ rehearsal, onClose, onSaved }) {
 
   return (
     <div style={{ minHeight: '100%', background: '#020817', animation: 'fadeInUp 0.3s ease' }}>
-      {/* Header sticky */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 20px', borderBottom: '1px solid rgba(245,158,11,0.15)', background: 'rgba(13,27,42,0.9)', backdropFilter: 'blur(10px)', position: 'sticky', top: 0, zIndex: 10 }}>
         <button onClick={onClose} style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#f59e0b', cursor: 'pointer', fontSize: '14px', padding: '6px 14px', borderRadius: '8px', fontWeight: '700' }}>← VOLVER</button>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -311,8 +399,6 @@ function RehearsalForm({ rehearsal, onClose, onSaved }) {
           <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#f59e0b', margin: 0, letterSpacing: '2px' }}>{rehearsal ? 'EDITAR ENSAYO' : 'NUEVO ENSAYO'}</h2>
         </div>
       </div>
-
-      {/* Formulario */}
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: '24px 20px 60px' }}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div><label style={L}>Título *</label><input value={form.title} onChange={e => set('title', e.target.value)} required className="input-field" placeholder="Ej: Ensayo dominical" /></div>
