@@ -14,9 +14,9 @@ function InlinePlayer({ sec, onClose, onNext, onPrev, hasNext, hasPrev }) {
   const [loading,     setLoading]     = useState(true)
   const [loop,        setLoop]        = useState(false)
   const [muted,       setMuted]       = useState(false)
-  const [speed,       setSpeed]       = useState(1)      // velocidad de reproducción
+  const [speed,       setSpeed]       = useState(1)
   const [showSpeed,   setShowSpeed]   = useState(false)
-  const [countdown,   setCountdown]   = useState(null)   // cuenta regresiva antes de play
+  const [countdown,   setCountdown]   = useState(null)
   const [countVal,    setCountVal]    = useState(0)
   const countRef = useRef(null)
 
@@ -63,7 +63,6 @@ function InlinePlayer({ sec, onClose, onNext, onPrev, hasNext, hasPrev }) {
     else { audio.play(); setPlaying(true) }
   }
 
-  // Cuenta regresiva antes de reproducir (3,2,1...)
   const startCountdown = (secs = 3) => {
     clearInterval(countRef.current)
     setCountdown(true); setCountVal(secs)
@@ -80,10 +79,7 @@ function InlinePlayer({ sec, onClose, onNext, onPrev, hasNext, hasPrev }) {
     }, 1000)
   }
 
-  const cancelCountdown = () => {
-    clearInterval(countRef.current)
-    setCountdown(false); setCountVal(0)
-  }
+  const cancelCountdown = () => { clearInterval(countRef.current); setCountdown(false); setCountVal(0) }
 
   const seek = (e) => {
     const bar = progressRef.current
@@ -115,117 +111,60 @@ function InlinePlayer({ sec, onClose, onNext, onPrev, hasNext, hasPrev }) {
     return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`
   }
 
-  const pct          = duration ? (currentTime / duration) * 100 : 0
-  const remaining    = duration - currentTime
+  const pct           = duration ? (currentTime / duration) * 100 : 0
+  const remaining     = duration - currentTime
   const isNormalSpeed = speed === 1
 
-  // Visualizador
   const Visualizer = () => (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '22px', width: '30px' }}>
       {[1, 0.55, 0.8, 0.4, 0.7].map((h, i) => (
-        <div key={i} style={{
-          width: '4px', borderRadius: '2px',
-          background: 'linear-gradient(180deg, #00d4ff, #7c3aed)',
-          height: playing ? (h * 100) + '%' : '15%',
-          transition: `height ${0.2 + i * 0.08}s ease`,
-          animation: playing ? `barPulse${i} ${0.5 + i * 0.18}s ease-in-out infinite alternate` : 'none'
-        }} />
+        <div key={i} style={{ width: '4px', borderRadius: '2px', background: 'linear-gradient(180deg, #00d4ff, #7c3aed)', height: playing ? (h * 100) + '%' : '15%', transition: `height ${0.2 + i * 0.08}s ease`, animation: playing ? `barPulse${i} ${0.5 + i * 0.18}s ease-in-out infinite alternate` : 'none' }} />
       ))}
     </div>
   )
 
-  // Botón de opción secundaria
   const OptionBtn = ({ active, onClick, icon, label, activeColor = '#06ffa5', title }) => (
-    <button onClick={onClick} title={title} style={{
-      display: 'flex', alignItems: 'center', gap: '4px',
-      padding: '5px 10px', borderRadius: '20px', cursor: 'pointer',
-      background: active ? `rgba(${activeColor === '#06ffa5' ? '6,255,165' : activeColor === '#f59e0b' ? '245,158,11' : '0,212,255'},0.15)` : 'rgba(255,255,255,0.05)',
-      border: `1px solid ${active ? activeColor + '55' : 'rgba(255,255,255,0.1)'}`,
-      color: active ? activeColor : '#475569',
-      fontSize: '11px', fontWeight: '700', transition: 'all 0.2s', whiteSpace: 'nowrap'
-    }}>
-      <span>{icon}</span>
-      {label && <span style={{ fontSize: '10px' }}>{label}</span>}
+    <button onClick={onClick} title={title} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '20px', cursor: 'pointer', background: active ? `rgba(${activeColor === '#06ffa5' ? '6,255,165' : activeColor === '#f59e0b' ? '245,158,11' : '0,212,255'},0.15)` : 'rgba(255,255,255,0.05)', border: `1px solid ${active ? activeColor + '55' : 'rgba(255,255,255,0.1)'}`, color: active ? activeColor : '#475569', fontSize: '11px', fontWeight: '700', transition: 'all 0.2s', whiteSpace: 'nowrap' }}>
+      <span>{icon}</span>{label && <span style={{ fontSize: '10px' }}>{label}</span>}
     </button>
   )
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, rgba(2,8,23,0.98), rgba(13,27,42,0.99))',
-      border: '1px solid rgba(0,212,255,0.28)',
-      borderRadius: '14px', margin: '6px 0 4px', overflow: 'hidden',
-      animation: 'fadeInUp 0.25s ease forwards',
-      boxShadow: '0 8px 32px rgba(0,212,255,0.07)'
-    }}>
+    <div style={{ background: 'linear-gradient(135deg, rgba(2,8,23,0.98), rgba(13,27,42,0.99))', border: '1px solid rgba(0,212,255,0.28)', borderRadius: '14px', margin: '6px 0 4px', overflow: 'hidden', animation: 'fadeInUp 0.25s ease forwards', boxShadow: '0 8px 32px rgba(0,212,255,0.07)' }}>
       <div style={{ height: '2px', background: 'linear-gradient(90deg, #7c3aed, #00d4ff, #06ffa5)' }} />
-
       <audio ref={audioRef} />
 
-      {/* Overlay cuenta regresiva */}
       {countdown && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 30,
-          background: 'rgba(2,8,23,0.92)', backdropFilter: 'blur(4px)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          borderRadius: '14px', gap: '8px'
-        }}>
-          <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '52px', fontWeight: '900', color: '#00d4ff', lineHeight: 1, animation: 'countPop 0.4s ease' }}>
-            {countVal}
-          </div>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(2,8,23,0.92)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: '14px', gap: '8px' }}>
+          <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '52px', fontWeight: '900', color: '#00d4ff', lineHeight: 1 }}>{countVal}</div>
           <p style={{ color: '#64748b', fontSize: '11px', margin: 0, letterSpacing: '2px' }}>INICIANDO...</p>
-          <button onClick={cancelCountdown} style={{ marginTop: '8px', padding: '5px 14px', borderRadius: '20px', cursor: 'pointer', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: '11px', fontWeight: '600' }}>
-            CANCELAR
-          </button>
+          <button onClick={cancelCountdown} style={{ marginTop: '8px', padding: '5px 14px', borderRadius: '20px', cursor: 'pointer', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: '11px', fontWeight: '600' }}>CANCELAR</button>
         </div>
       )}
 
       <div style={{ padding: '14px 16px', position: 'relative' }}>
-
-        {/* ── Info ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '13px' }}>
           <div style={{ position: 'relative', flexShrink: 0 }}>
-            <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'linear-gradient(135deg, rgba(124,58,237,0.5), rgba(0,212,255,0.3))', border: '1px solid rgba(0,212,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Visualizer />
-            </div>
+            <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'linear-gradient(135deg, rgba(124,58,237,0.5), rgba(0,212,255,0.3))', border: '1px solid rgba(0,212,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Visualizer /></div>
             {playing && <div style={{ position: 'absolute', inset: -3, borderRadius: '13px', border: '1px solid rgba(0,212,255,0.35)', animation: 'ringPulse 1.8s ease-in-out infinite' }} />}
           </div>
-
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ margin: 0, color: '#e2e8f0', fontSize: '13px', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sec.title}</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
-              {sec.songs && (
-                <span style={{ color: '#00d4ff', fontSize: '10px', fontWeight: '600' }}>
-                  {sec.songs.title} <span style={{ color: '#334155' }}>·</span> <span style={{ color: '#a78bfa' }}>{sec.songs.original_key}</span>
-                </span>
-              )}
-              {!isNormalSpeed && (
-                <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', fontWeight: '700' }}>
-                  {speed}×
-                </span>
-              )}
-              {loop && (
-                <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(6,255,165,0.12)', border: '1px solid rgba(6,255,165,0.3)', color: '#06ffa5', fontWeight: '700' }}>
-                  🔁 LOOP
-                </span>
-              )}
+              {sec.songs && <span style={{ color: '#00d4ff', fontSize: '10px', fontWeight: '600' }}>{sec.songs.title} <span style={{ color: '#334155' }}>·</span> <span style={{ color: '#a78bfa' }}>{sec.songs.original_key}</span></span>}
+              {!isNormalSpeed && <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', fontWeight: '700' }}>{speed}×</span>}
+              {loop && <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(6,255,165,0.12)', border: '1px solid rgba(6,255,165,0.3)', color: '#06ffa5', fontWeight: '700' }}>🔁 LOOP</span>}
             </div>
           </div>
-
           <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexShrink: 0 }}>
             {loading && <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: '2px solid rgba(0,212,255,0.15)', borderTop: '2px solid #00d4ff', animation: 'spin 0.8s linear infinite' }} />}
-            <a href={sec.audio_url} download target="_blank" rel="noopener noreferrer"
-              style={{ width: '28px', height: '28px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(6,255,165,0.07)', border: '1px solid rgba(6,255,165,0.2)', color: '#06ffa5', textDecoration: 'none', fontSize: '12px' }}
-              title="Descargar">⬇</a>
+            <a href={sec.audio_url} download target="_blank" rel="noopener noreferrer" style={{ width: '28px', height: '28px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(6,255,165,0.07)', border: '1px solid rgba(6,255,165,0.2)', color: '#06ffa5', textDecoration: 'none', fontSize: '12px' }} title="Descargar">⬇</a>
             <button onClick={onClose} style={{ width: '28px', height: '28px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', cursor: 'pointer', fontSize: '15px' }}>×</button>
           </div>
         </div>
 
-        {/* ── Barra de progreso ── */}
         <div style={{ marginBottom: '13px' }}>
-          <div ref={progressRef} onClick={seek}
-            onMouseMove={e => { if (e.buttons === 1) seek(e) }}
-            onTouchStart={seekTouch} onTouchMove={seekTouch}
-            style={{ height: '5px', borderRadius: '3px', cursor: 'pointer', background: 'rgba(255,255,255,0.07)', position: 'relative', marginBottom: '5px' }}>
+          <div ref={progressRef} onClick={seek} onMouseMove={e => { if (e.buttons === 1) seek(e) }} onTouchStart={seekTouch} onTouchMove={seekTouch} style={{ height: '5px', borderRadius: '3px', cursor: 'pointer', background: 'rgba(255,255,255,0.07)', position: 'relative', marginBottom: '5px' }}>
             <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: pct + '%', borderRadius: '3px', background: 'linear-gradient(90deg, #7c3aed, #00d4ff)', transition: 'width 0.1s linear' }} />
             <div style={{ position: 'absolute', top: '50%', left: pct + '%', transform: 'translate(-50%, -50%)', width: '13px', height: '13px', borderRadius: '50%', background: '#fff', boxShadow: '0 0 8px rgba(0,212,255,0.8)', transition: 'left 0.1s linear' }} />
           </div>
@@ -236,141 +175,49 @@ function InlinePlayer({ sec, onClose, onNext, onPrev, hasNext, hasPrev }) {
           </div>
         </div>
 
-        {/* ── Controles principales ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '13px' }}>
-          {(hasPrev || hasNext) && (
-            <button onClick={onPrev} disabled={!hasPrev} style={{ background: 'none', border: 'none', color: hasPrev ? '#64748b' : '#1e3a4a', cursor: hasPrev ? 'pointer' : 'default', fontSize: '18px', padding: '4px 6px', transition: 'color 0.2s' }}
-              onMouseEnter={e => { if (hasPrev) e.currentTarget.style.color = '#e2e8f0' }}
-              onMouseLeave={e => { if (hasPrev) e.currentTarget.style.color = '#64748b' }}
-              title="Anterior">⏮</button>
-          )}
-
-          <button onClick={() => skip(-10)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', padding: '4px 5px' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#94a3b8'}
-            onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
-            <span style={{ fontSize: '15px', lineHeight: 1 }}>⟨⟨</span>
-            <span style={{ fontSize: '8px' }}>10s</span>
+          {(hasPrev || hasNext) && <button onClick={onPrev} disabled={!hasPrev} style={{ background: 'none', border: 'none', color: hasPrev ? '#64748b' : '#1e3a4a', cursor: hasPrev ? 'pointer' : 'default', fontSize: '18px', padding: '4px 6px' }}>⏮</button>}
+          <button onClick={() => skip(-10)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', padding: '4px 5px' }}>
+            <span style={{ fontSize: '15px', lineHeight: 1 }}>⟨⟨</span><span style={{ fontSize: '8px' }}>10s</span>
           </button>
-
-          <button onClick={togglePlay} disabled={loading} style={{
-            width: '50px', height: '50px', borderRadius: '50%',
-            background: loading ? 'rgba(0,212,255,0.1)' : 'linear-gradient(135deg, #7c3aed, #00d4ff)',
-            border: 'none', color: 'white', fontSize: '18px',
-            cursor: loading ? 'wait' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: loading ? 'none' : '0 4px 24px rgba(0,212,255,0.3)',
-            transition: 'all 0.2s', flexShrink: 0
-          }}>
-            {loading
-              ? <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.2)', borderTop: '2px solid white', animation: 'spin 0.8s linear infinite' }} />
-              : playing ? '⏸' : '▶'}
+          <button onClick={togglePlay} disabled={loading} style={{ width: '50px', height: '50px', borderRadius: '50%', background: loading ? 'rgba(0,212,255,0.1)' : 'linear-gradient(135deg, #7c3aed, #00d4ff)', border: 'none', color: 'white', fontSize: '18px', cursor: loading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: loading ? 'none' : '0 4px 24px rgba(0,212,255,0.3)', transition: 'all 0.2s', flexShrink: 0 }}>
+            {loading ? <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.2)', borderTop: '2px solid white', animation: 'spin 0.8s linear infinite' }} /> : playing ? '⏸' : '▶'}
           </button>
-
-          <button onClick={() => skip(10)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', padding: '4px 5px' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#94a3b8'}
-            onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
-            <span style={{ fontSize: '15px', lineHeight: 1 }}>⟩⟩</span>
-            <span style={{ fontSize: '8px' }}>10s</span>
+          <button onClick={() => skip(10)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', padding: '4px 5px' }}>
+            <span style={{ fontSize: '15px', lineHeight: 1 }}>⟩⟩</span><span style={{ fontSize: '8px' }}>10s</span>
           </button>
-
-          {(hasPrev || hasNext) && (
-            <button onClick={onNext} disabled={!hasNext} style={{ background: 'none', border: 'none', color: hasNext ? '#64748b' : '#1e3a4a', cursor: hasNext ? 'pointer' : 'default', fontSize: '18px', padding: '4px 6px', transition: 'color 0.2s' }}
-              onMouseEnter={e => { if (hasNext) e.currentTarget.style.color = '#e2e8f0' }}
-              onMouseLeave={e => { if (hasNext) e.currentTarget.style.color = '#64748b' }}
-              title="Siguiente">⏭</button>
-          )}
+          {(hasPrev || hasNext) && <button onClick={onNext} disabled={!hasNext} style={{ background: 'none', border: 'none', color: hasNext ? '#64748b' : '#1e3a4a', cursor: hasNext ? 'pointer' : 'default', fontSize: '18px', padding: '4px 6px' }}>⏭</button>}
         </div>
 
-        {/* ── Controles secundarios ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-
-          {/* Volumen */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: '120px', flex: 1 }}>
-            <button onClick={() => setMuted(m => !m)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px', color: muted ? '#f87171' : '#64748b', transition: 'color 0.2s', flexShrink: 0 }}>
+            <button onClick={() => setMuted(m => !m)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px', color: muted ? '#f87171' : '#64748b' }}>
               {muted ? '🔇' : volume < 0.4 ? '🔈' : volume < 0.7 ? '🔉' : '🔊'}
             </button>
-            <input type="range" min="0" max="1" step="0.05" value={muted ? 0 : volume}
-              onChange={e => { const v = parseFloat(e.target.value); setVolume(v); setMuted(v === 0); if (audioRef.current) audioRef.current.volume = v }}
-              style={{ flex: 1, maxWidth: '80px', accentColor: '#7c3aed', cursor: 'pointer' }} />
+            <input type="range" min="0" max="1" step="0.05" value={muted ? 0 : volume} onChange={e => { const v = parseFloat(e.target.value); setVolume(v); setMuted(v === 0); if (audioRef.current) audioRef.current.volume = v }} style={{ flex: 1, maxWidth: '80px', accentColor: '#7c3aed', cursor: 'pointer' }} />
           </div>
-
-          {/* Opciones */}
           <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
-
-            {/* Loop */}
-            <OptionBtn
-              active={loop}
-              onClick={() => setLoop(l => !l)}
-              icon="🔁" label="LOOP"
-              activeColor="#06ffa5"
-              title="Repetir en bucle"
-            />
-
-            {/* Velocidad */}
+            <OptionBtn active={loop} onClick={() => setLoop(l => !l)} icon="🔁" label="LOOP" activeColor="#06ffa5" title="Repetir en bucle" />
             <div style={{ position: 'relative' }}>
-              <OptionBtn
-                active={!isNormalSpeed || showSpeed}
-                onClick={() => setShowSpeed(s => !s)}
-                icon="⚡" label={isNormalSpeed ? 'VEL' : `${speed}×`}
-                activeColor="#f59e0b"
-                title="Velocidad de reproducción"
-              />
+              <OptionBtn active={!isNormalSpeed || showSpeed} onClick={() => setShowSpeed(s => !s)} icon="⚡" label={isNormalSpeed ? 'VEL' : `${speed}×`} activeColor="#f59e0b" title="Velocidad" />
               {showSpeed && (
-                <div style={{
-                  position: 'absolute', bottom: '36px', right: 0,
-                  background: 'rgba(13,27,42,0.98)', border: '1px solid rgba(245,158,11,0.3)',
-                  borderRadius: '12px', padding: '10px', zIndex: 20,
-                  animation: 'fadeInUp 0.15s ease forwards',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                  minWidth: '160px'
-                }}>
+                <div style={{ position: 'absolute', bottom: '36px', right: 0, background: 'rgba(13,27,42,0.98)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '12px', padding: '10px', zIndex: 20, animation: 'fadeInUp 0.15s ease forwards', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', minWidth: '160px' }}>
                   <p style={{ color: '#64748b', fontSize: '9px', letterSpacing: '1.5px', textTransform: 'uppercase', margin: '0 0 8px', textAlign: 'center' }}>VELOCIDAD</p>
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
                     {SPEEDS.map((s, i) => (
-                      <button key={s} onClick={() => { setSpeed(s); setShowSpeed(false) }} style={{
-                        padding: '5px 8px', borderRadius: '7px', cursor: 'pointer',
-                        background: speed === s ? 'linear-gradient(135deg, #f59e0b, #f97316)' : 'rgba(255,255,255,0.05)',
-                        border: '1px solid ' + (speed === s ? 'transparent' : 'rgba(255,255,255,0.08)'),
-                        color: speed === s ? 'white' : s === 1 ? '#06ffa5' : '#94a3b8',
-                        fontSize: '11px', fontWeight: '700', transition: 'all 0.15s'
-                      }}>{SPEED_LABELS[i]}</button>
+                      <button key={s} onClick={() => { setSpeed(s); setShowSpeed(false) }} style={{ padding: '5px 8px', borderRadius: '7px', cursor: 'pointer', background: speed === s ? 'linear-gradient(135deg, #f59e0b, #f97316)' : 'rgba(255,255,255,0.05)', border: '1px solid ' + (speed === s ? 'transparent' : 'rgba(255,255,255,0.08)'), color: speed === s ? 'white' : s === 1 ? '#06ffa5' : '#94a3b8', fontSize: '11px', fontWeight: '700' }}>{SPEED_LABELS[i]}</button>
                     ))}
                   </div>
                 </div>
               )}
             </div>
-
-            {/* Cuenta regresiva */}
-            <OptionBtn
-              active={false}
-              onClick={() => startCountdown(3)}
-              icon="3️⃣" label="CUENTA"
-              activeColor="#00d4ff"
-              title="Cuenta regresiva 3 segundos antes de reproducir"
-            />
-
-            {/* Volver al inicio */}
-            <OptionBtn
-              active={false}
-              onClick={() => { if (audioRef.current) { audioRef.current.currentTime = 0; setCurrentTime(0) } }}
-              icon="⏮" label=""
-              activeColor="#00d4ff"
-              title="Volver al inicio"
-            />
-
+            <OptionBtn active={false} onClick={() => startCountdown(3)} icon="3️⃣" label="CUENTA" activeColor="#00d4ff" title="Cuenta regresiva 3s" />
+            <OptionBtn active={false} onClick={() => { if (audioRef.current) { audioRef.current.currentTime = 0; setCurrentTime(0) } }} icon="⏮" label="" activeColor="#00d4ff" title="Volver al inicio" />
           </div>
         </div>
       </div>
-
       <style>{`
-        @keyframes ringPulse {
-          0%, 100% { opacity: 0.5; transform: scale(1); }
-          50% { opacity: 0.15; transform: scale(1.06); }
-        }
-        @keyframes countPop {
-          0% { transform: scale(1.4); opacity: 0; }
-          100% { transform: scale(1); opacity: 1; }
-        }
+        @keyframes ringPulse { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 0.15; transform: scale(1.06); } }
         @keyframes barPulse0 { 0% { height: 15% } 100% { height: 100% } }
         @keyframes barPulse1 { 0% { height: 25% } 100% { height: 65% } }
         @keyframes barPulse2 { 0% { height: 10% } 100% { height: 85% } }
@@ -384,38 +231,16 @@ function InlinePlayer({ sec, onClose, onNext, onPrev, hasNext, hasPrev }) {
 // ── Card ─────────────────────────────────────────────────────────────────────
 function SecuenciaCard({ sec, isPlaying, onPlay, onEdit, onDelete }) {
   return (
-    <div style={{
-      background: isPlaying ? 'linear-gradient(135deg, rgba(0,212,255,0.07), rgba(124,58,237,0.07))' : 'rgba(13,27,42,0.8)',
-      border: '1px solid ' + (isPlaying ? 'rgba(0,212,255,0.4)' : 'rgba(124,58,237,0.12)'),
-      borderRadius: '12px', padding: '12px 14px',
-      transition: 'all 0.25s ease',
-      boxShadow: isPlaying ? '0 0 20px rgba(0,212,255,0.07)' : 'none',
-      overflow: 'hidden', position: 'relative'
-    }}
-    onMouseEnter={e => { if (!isPlaying) e.currentTarget.style.borderColor = 'rgba(124,58,237,0.3)' }}
-    onMouseLeave={e => { if (!isPlaying) e.currentTarget.style.borderColor = 'rgba(124,58,237,0.12)' }}
-    >
+    <div style={{ background: isPlaying ? 'linear-gradient(135deg, rgba(0,212,255,0.07), rgba(124,58,237,0.07))' : 'rgba(13,27,42,0.8)', border: '1px solid ' + (isPlaying ? 'rgba(0,212,255,0.4)' : 'rgba(124,58,237,0.12)'), borderRadius: '12px', padding: '12px 14px', transition: 'all 0.25s ease', boxShadow: isPlaying ? '0 0 20px rgba(0,212,255,0.07)' : 'none', overflow: 'hidden', position: 'relative' }}
+      onMouseEnter={e => { if (!isPlaying) e.currentTarget.style.borderColor = 'rgba(124,58,237,0.3)' }}
+      onMouseLeave={e => { if (!isPlaying) e.currentTarget.style.borderColor = 'rgba(124,58,237,0.12)' }}>
       {isPlaying && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: 'linear-gradient(180deg, #00d4ff, #7c3aed)', borderRadius: '3px 0 0 3px' }} />}
-
       <div style={{ display: 'flex', alignItems: 'center', gap: '11px', paddingLeft: isPlaying ? '4px' : '0' }}>
-        <button onClick={onPlay} style={{
-          width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0, cursor: 'pointer',
-          background: isPlaying ? 'linear-gradient(135deg, #00d4ff, #7c3aed)' : 'rgba(124,58,237,0.15)',
-          border: '1px solid ' + (isPlaying ? 'transparent' : 'rgba(124,58,237,0.35)'),
-          color: isPlaying ? 'white' : '#a78bfa', fontSize: '14px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.2s',
-          boxShadow: isPlaying ? '0 4px 16px rgba(0,212,255,0.3)' : 'none'
-        }}>{isPlaying ? '⏸' : '▶'}</button>
-
+        <button onClick={onPlay} style={{ width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0, cursor: 'pointer', background: isPlaying ? 'linear-gradient(135deg, #00d4ff, #7c3aed)' : 'rgba(124,58,237,0.15)', border: '1px solid ' + (isPlaying ? 'transparent' : 'rgba(124,58,237,0.35)'), color: isPlaying ? 'white' : '#a78bfa', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', boxShadow: isPlaying ? '0 4px 16px rgba(0,212,255,0.3)' : 'none' }}>{isPlaying ? '⏸' : '▶'}</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px', flexWrap: 'wrap' }}>
             <p style={{ margin: 0, fontWeight: '700', color: isPlaying ? '#e2e8f0' : '#cbd5e1', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sec.title}</p>
-            {sec.songs && (
-              <span style={{ fontSize: '9px', padding: '2px 7px', borderRadius: '20px', flexShrink: 0, background: isPlaying ? 'rgba(0,212,255,0.15)' : 'rgba(0,212,255,0.07)', border: '1px solid ' + (isPlaying ? 'rgba(0,212,255,0.4)' : 'rgba(0,212,255,0.18)'), color: '#00d4ff', fontWeight: '700' }}>
-                {sec.songs.title} · {sec.songs.original_key}
-              </span>
-            )}
+            {sec.songs && <span style={{ fontSize: '9px', padding: '2px 7px', borderRadius: '20px', flexShrink: 0, background: isPlaying ? 'rgba(0,212,255,0.15)' : 'rgba(0,212,255,0.07)', border: '1px solid ' + (isPlaying ? 'rgba(0,212,255,0.4)' : 'rgba(0,212,255,0.18)'), color: '#00d4ff', fontWeight: '700' }}>{sec.songs.title} · {sec.songs.original_key}</span>}
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
             {sec.file_name && <span style={{ color: '#475569', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>🎵 {sec.file_name}</span>}
@@ -423,28 +248,17 @@ function SecuenciaCard({ sec, isPlaying, onPlay, onEdit, onDelete }) {
             <span style={{ color: '#334155', fontSize: '10px', flexShrink: 0 }}>{dayjs(sec.created_at).format('DD/MM/YY')}</span>
           </div>
         </div>
-
         <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-          <a href={sec.audio_url} download target="_blank" rel="noopener noreferrer"
-            style={{ width: '30px', height: '30px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(6,255,165,0.07)', border: '1px solid rgba(6,255,165,0.2)', color: '#06ffa5', fontSize: '12px', textDecoration: 'none' }}
-            title="Descargar">⬇</a>
-          {onEdit && (
-            <button onClick={onEdit} style={{ width: '30px', height: '30px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b', fontSize: '12px', cursor: 'pointer' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}>✎</button>
-          )}
-          {onDelete && (
-            <button onClick={onDelete} style={{ width: '30px', height: '30px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', fontSize: '12px', cursor: 'pointer' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}>✕</button>
-          )}
+          <a href={sec.audio_url} download target="_blank" rel="noopener noreferrer" style={{ width: '30px', height: '30px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(6,255,165,0.07)', border: '1px solid rgba(6,255,165,0.2)', color: '#06ffa5', fontSize: '12px', textDecoration: 'none' }} title="Descargar">⬇</a>
+          {onEdit && <button onClick={onEdit} style={{ width: '30px', height: '30px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b', fontSize: '12px', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'none'}>✎</button>}
+          {onDelete && <button onClick={onDelete} style={{ width: '30px', height: '30px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', fontSize: '12px', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'none'}>✕</button>}
         </div>
       </div>
     </div>
   )
 }
 
-// ── Formulario ───────────────────────────────────────────────────────────────
+// ── Formulario como página completa ──────────────────────────────────────────
 function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
   const { user } = useAuth()
   const [form, setForm]         = useState({ title: secuencia?.title || '', description: secuencia?.description || '', song_id: secuencia?.song_id || '' })
@@ -486,20 +300,27 @@ function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
   const L = { display: 'block', color: '#94a3b8', fontSize: '11px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 50, padding: '16px', backdropFilter: 'blur(6px)', overflowY: 'auto' }}>
-      <div style={{ background: 'linear-gradient(135deg, #0d1b2a, #0a1628)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: '20px', width: '100%', maxWidth: '500px', animation: 'fadeInUp 0.3s ease forwards', margin: 'auto', overflow: 'hidden' }}>
-        <div style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.12), rgba(0,212,255,0.08))', borderBottom: '1px solid rgba(124,58,237,0.15)', padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ minHeight: '100%', background: '#020817', animation: 'fadeInUp 0.3s ease' }}>
+      {/* Header sticky */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 20px', borderBottom: '1px solid rgba(124,58,237,0.15)', background: 'rgba(13,27,42,0.9)', backdropFilter: 'blur(10px)', position: 'sticky', top: 0, zIndex: 10 }}>
+        <button onClick={onClose} style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', color: '#a78bfa', cursor: 'pointer', fontSize: '14px', padding: '6px 14px', borderRadius: '8px', fontWeight: '700' }}>← VOLVER</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '18px' }}>🎵</span>
           <div>
-            <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#a78bfa', margin: 0 }}>{secuencia ? 'EDITAR' : 'SUBIR SECUENCIA'}</h2>
-            <p style={{ color: '#475569', fontSize: '11px', margin: '2px 0 0' }}>MP3, WAV, OGG, M4A, FLAC...</p>
+            <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#a78bfa', margin: 0, letterSpacing: '2px' }}>{secuencia ? 'EDITAR' : 'SUBIR SECUENCIA'}</h2>
+            <p style={{ color: '#475569', fontSize: '10px', margin: 0 }}>MP3, WAV, OGG, M4A, FLAC...</p>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontSize: '18px', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
         </div>
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+      </div>
+
+      {/* Formulario */}
+      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '24px 20px 60px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div><label style={L}>Título *</label><input value={form.title} onChange={e => set('title', e.target.value)} required className="input-field" placeholder="Ej: Secuencia Coro — Domingo" /></div>
+
           <div>
             <label style={L}>🎵 Archivo {!secuencia && '*'}</label>
-            <div style={{ border: '2px dashed rgba(124,58,237,0.3)', borderRadius: '10px', padding: '18px', textAlign: 'center', cursor: 'pointer', background: 'rgba(124,58,237,0.03)', transition: 'all 0.2s' }}
+            <div style={{ border: '2px dashed rgba(124,58,237,0.3)', borderRadius: '10px', padding: '24px', textAlign: 'center', cursor: 'pointer', background: 'rgba(124,58,237,0.03)', transition: 'all 0.2s' }}
               onDragOver={e => e.preventDefault()}
               onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setFile(f); setError('') } }}
               onClick={() => document.getElementById('audioInput').click()}
@@ -508,19 +329,20 @@ function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
               <input id="audioInput" type="file" accept="audio/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files[0]; if (f) { setFile(f); setError('') } }} />
               {file ? (
                 <div>
-                  <p style={{ color: '#a78bfa', fontSize: '13px', margin: '0 0 3px', fontWeight: '600' }}>✓ {file.name}</p>
-                  <p style={{ color: '#64748b', fontSize: '11px', margin: 0 }}>{(file.size / (1024 * 1024)).toFixed(1)} MB</p>
+                  <p style={{ color: '#a78bfa', fontSize: '14px', margin: '0 0 4px', fontWeight: '600' }}>✓ {file.name}</p>
+                  <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{(file.size / (1024 * 1024)).toFixed(1)} MB</p>
                 </div>
               ) : (
                 <div>
-                  <div style={{ fontSize: '26px', marginBottom: '6px', opacity: 0.4 }}>🎵</div>
-                  <p style={{ color: '#475569', fontSize: '13px', margin: '0 0 3px' }}>Arrastra o toca para seleccionar</p>
-                  <p style={{ color: '#334155', fontSize: '11px', margin: 0 }}>MP3, WAV, OGG, M4A, FLAC...</p>
-                  {secuencia?.file_name && <p style={{ color: '#7c3aed', fontSize: '11px', margin: '6px 0 0' }}>Actual: {secuencia.file_name}</p>}
+                  <div style={{ fontSize: '32px', marginBottom: '8px', opacity: 0.4 }}>🎵</div>
+                  <p style={{ color: '#475569', fontSize: '14px', margin: '0 0 4px' }}>Arrastra o toca para seleccionar</p>
+                  <p style={{ color: '#334155', fontSize: '12px', margin: 0 }}>MP3, WAV, OGG, M4A, FLAC...</p>
+                  {secuencia?.file_name && <p style={{ color: '#7c3aed', fontSize: '12px', margin: '8px 0 0' }}>Actual: {secuencia.file_name}</p>}
                 </div>
               )}
             </div>
           </div>
+
           <div>
             <label style={L}>🎸 Canción relacionada (opcional)</label>
             <select value={form.song_id} onChange={e => set('song_id', e.target.value)} className="input-field" style={{ cursor: 'pointer' }}>
@@ -528,8 +350,11 @@ function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
               {songs.map(s => <option key={s.id} value={s.id}>{s.title} ({s.original_key})</option>)}
             </select>
           </div>
-          <div><label style={L}>📝 Descripción</label><textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} className="input-field" style={{ resize: 'vertical' }} placeholder="Notas sobre la secuencia..." /></div>
+
+          <div><label style={L}>📝 Descripción</label><textarea value={form.description} onChange={e => set('description', e.target.value)} rows={4} className="input-field" style={{ resize: 'vertical' }} placeholder="Notas sobre la secuencia..." /></div>
+
           {error && <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: '13px' }}>{error}</div>}
+
           {saving && progress > 0 && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
@@ -541,13 +366,15 @@ function SecuenciaForm({ secuencia, songs, onClose, onSaved }) {
               </div>
             </div>
           )}
+
+          <div style={{ height: '1px', background: 'linear-gradient(90deg, transparent, rgba(124,58,237,0.2), transparent)' }} />
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button type="button" onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(100,116,139,0.3)', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>CANCELAR</button>
-            <button onClick={handleSubmit} disabled={saving} style={{ flex: 2, padding: '11px', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', background: saving ? 'rgba(124,58,237,0.1)' : 'linear-gradient(135deg, #7c3aed, #00d4ff)', border: 'none', color: saving ? '#a78bfa' : 'white', fontSize: '13px', fontWeight: '700' }}>
-              {saving ? `SUBIENDO ${progress}%...` : secuencia ? 'GUARDAR' : 'SUBIR'}
+            <button type="button" onClick={onClose} style={{ flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(100,116,139,0.3)', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>CANCELAR</button>
+            <button type="submit" disabled={saving} style={{ flex: 2, padding: '12px', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', background: saving ? 'rgba(124,58,237,0.1)' : 'linear-gradient(135deg, #7c3aed, #00d4ff)', border: 'none', color: saving ? '#a78bfa' : 'white', fontSize: '13px', fontWeight: '700' }}>
+              {saving ? `SUBIENDO ${progress}%...` : secuencia ? 'GUARDAR CAMBIOS' : 'SUBIR SECUENCIA'}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   )
@@ -597,10 +424,7 @@ export default function Secuencias() {
   }
 
   const filtered = secuencias
-    .filter(s =>
-      s.title.toLowerCase().includes(search.toLowerCase()) ||
-      s.songs?.title?.toLowerCase().includes(search.toLowerCase())
-    )
+    .filter(s => s.title.toLowerCase().includes(search.toLowerCase()) || s.songs?.title?.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       let valA, valB
       switch (sortBy) {
@@ -629,14 +453,7 @@ export default function Secuencias() {
   const showGrouped = sortBy === 'title' && !search
 
   const SortBtn = ({ field, label }) => (
-    <button onClick={() => toggleSort(field)} style={{
-      display: 'flex', alignItems: 'center', gap: '3px',
-      padding: '4px 8px', borderRadius: '6px', cursor: 'pointer',
-      background: sortBy === field ? 'rgba(124,58,237,0.15)' : 'rgba(0,0,0,0.2)',
-      border: '1px solid ' + (sortBy === field ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.1)'),
-      color: sortBy === field ? '#a78bfa' : '#475569',
-      fontSize: '10px', fontWeight: '600', whiteSpace: 'nowrap', transition: 'all 0.2s'
-    }}>
+    <button onClick={() => toggleSort(field)} style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', background: sortBy === field ? 'rgba(124,58,237,0.15)' : 'rgba(0,0,0,0.2)', border: '1px solid ' + (sortBy === field ? 'rgba(124,58,237,0.4)' : 'rgba(124,58,237,0.1)'), color: sortBy === field ? '#a78bfa' : '#475569', fontSize: '10px', fontWeight: '600', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
       {label} <span style={{ fontSize: '9px' }}>{sortBy === field ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
     </button>
   )
@@ -654,18 +471,22 @@ export default function Secuencias() {
       )
       if (activePlayer === sec.id) {
         const activeSec = secuencias.find(s => s.id === activePlayer)
-        if (activeSec) {
-          result.push(
-            <InlinePlayer key={`player-${sec.id}`}
-              sec={activeSec} onClose={() => setActivePlayer(null)}
-              onNext={goNext} onPrev={goPrev}
-              hasNext={hasNext} hasPrev={hasPrev}
-            />
-          )
-        }
+        if (activeSec) result.push(<InlinePlayer key={`player-${sec.id}`} sec={activeSec} onClose={() => setActivePlayer(null)} onNext={goNext} onPrev={goPrev} hasNext={hasNext} hasPrev={hasPrev} />)
       }
     })
     return result
+  }
+
+  // ── Si showForm, mostrar formulario como página completa ──────────────────
+  if (showForm) {
+    return (
+      <SecuenciaForm
+        secuencia={editing}
+        songs={songs}
+        onClose={() => { setShowForm(false); setEditing(null) }}
+        onSaved={() => { fetchSecuencias(); setShowForm(false); setEditing(null) }}
+      />
+    )
   }
 
   return (
@@ -706,11 +527,7 @@ export default function Secuencias() {
         <div style={{ textAlign: 'center', padding: '50px', background: 'rgba(13,27,42,0.5)', border: '1px dashed rgba(124,58,237,0.2)', borderRadius: '14px', color: '#64748b' }}>
           <div style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.3 }}>🎵</div>
           <p style={{ margin: '0 0 6px', fontSize: '14px' }}>{search ? 'Sin resultados' : 'No hay secuencias aún'}</p>
-          {canEdit && !search && (
-            <button onClick={() => setShowForm(true)} style={{ marginTop: '10px', padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa', fontSize: '12px', fontWeight: '600' }}>
-              + SUBIR PRIMERA SECUENCIA
-            </button>
-          )}
+          {canEdit && !search && <button onClick={() => setShowForm(true)} style={{ marginTop: '10px', padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa', fontSize: '12px', fontWeight: '600' }}>+ SUBIR PRIMERA SECUENCIA</button>}
         </div>
       ) : showGrouped ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -720,22 +537,12 @@ export default function Secuencias() {
                 <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#a78bfa', fontWeight: '900', letterSpacing: '2px' }}>{letter}</span>
                 <span style={{ color: '#334155', fontSize: '10px' }}>{grouped[letter].length} pista{grouped[letter].length !== 1 ? 's' : ''}</span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                {renderList(grouped[letter])}
-              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>{renderList(grouped[letter])}</div>
             </div>
           ))}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          {renderList(filtered)}
-        </div>
-      )}
-
-      {showForm && (
-        <SecuenciaForm secuencia={editing} songs={songs}
-          onClose={() => setShowForm(false)}
-          onSaved={() => { fetchSecuencias(); setShowForm(false) }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>{renderList(filtered)}</div>
       )}
     </div>
   )

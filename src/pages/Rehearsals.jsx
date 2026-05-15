@@ -89,6 +89,17 @@ export default function Rehearsals() {
   const upcoming = rehearsals.filter(r => dayjs(r.date).isAfter(dayjs().subtract(1, 'day')))
   const past     = rehearsals.filter(r => dayjs(r.date).isBefore(dayjs().subtract(1, 'day')))
 
+  // ── Si showForm, mostrar formulario como página completa ──────────────────
+  if (showForm) {
+    return (
+      <RehearsalForm
+        rehearsal={editing}
+        onClose={() => { setShowForm(false); setEditing(null) }}
+        onSaved={() => { fetchRehearsals(); setShowForm(false); setEditing(null) }}
+      />
+    )
+  }
+
   const DetailPanel = () => (
     <div style={{ background: 'rgba(13,27,42,0.9)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '12px', overflow: 'hidden' }}>
       <div style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(6,255,165,0.06))', borderBottom: '1px solid rgba(245,158,11,0.15)', padding: '14px 16px' }}>
@@ -174,18 +185,17 @@ export default function Rehearsals() {
 
   return (
     <div style={{ animation: 'fadeInUp 0.5s ease forwards', width: '100%', overflowX: 'hidden' }}>
-
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '8px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
           <div style={{ width: '6px', height: '36px', borderRadius: '3px', background: 'linear-gradient(180deg, #f59e0b, #06ffa5)', flexShrink: 0 }} />
           <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '20px', fontWeight: '700', color: '#e2e8f0', margin: 0 }}>ENSAYOS</h1>
           <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '20px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: '#f59e0b', flexShrink: 0 }}>{rehearsals.length}</span>
         </div>
-        {canEdit && <button className="btn-primary" onClick={() => { setEditing(null); setShowForm(true) }}>+ NUEVO</button>}
+        {canEdit && (
+          <button className="btn-primary" onClick={() => { setEditing(null); setShowForm(true) }}>+ NUEVO</button>
+        )}
       </div>
 
-      {/* Detalle o lista */}
       {showDetail && selected ? (
         <div>
           <button onClick={() => { setShowDetail(false); setSelected(null) }} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
@@ -212,7 +222,9 @@ export default function Rehearsals() {
                   <p style={{ color: '#f59e0b', fontSize: '10px', letterSpacing: '2px', margin: '0 0 8px', textTransform: 'uppercase' }}>PRÓXIMOS</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
                     {upcoming.map((r, i) => (
-                      <RehearsalCard key={r.id} rehearsal={r} selected={selected} onSelect={selectRehearsal} canEdit={canEdit} onEdit={() => { setEditing(r); setShowForm(true) }} onDelete={() => handleDelete(r.id)} index={i} />
+                      <RehearsalCard key={r.id} rehearsal={r} selected={selected} onSelect={selectRehearsal} canEdit={canEdit}
+                        onEdit={() => { setEditing(r); setShowForm(true) }}
+                        onDelete={() => handleDelete(r.id)} index={i} />
                     ))}
                   </div>
                 </div>
@@ -222,7 +234,9 @@ export default function Rehearsals() {
                   <p style={{ color: '#64748b', fontSize: '10px', letterSpacing: '2px', margin: '0 0 8px', textTransform: 'uppercase' }}>ANTERIORES</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
                     {past.map((r, i) => (
-                      <RehearsalCard key={r.id} rehearsal={r} selected={selected} onSelect={selectRehearsal} canEdit={canEdit} onEdit={() => { setEditing(r); setShowForm(true) }} onDelete={() => handleDelete(r.id)} index={i} past />
+                      <RehearsalCard key={r.id} rehearsal={r} selected={selected} onSelect={selectRehearsal} canEdit={canEdit}
+                        onEdit={() => { setEditing(r); setShowForm(true) }}
+                        onDelete={() => handleDelete(r.id)} index={i} past />
                     ))}
                   </div>
                 </div>
@@ -230,10 +244,6 @@ export default function Rehearsals() {
             </>
           )}
         </div>
-      )}
-
-      {showForm && (
-        <RehearsalForm rehearsal={editing} onClose={() => setShowForm(false)} onSaved={() => { fetchRehearsals(); setShowForm(false) }} />
       )}
     </div>
   )
@@ -274,9 +284,9 @@ function RehearsalCard({ rehearsal, selected, onSelect, canEdit, onEdit, onDelet
 function RehearsalForm({ rehearsal, onClose, onSaved }) {
   const { user } = useAuth()
   const [form, setForm] = useState({
-    title: rehearsal?.title || '',
-    date: rehearsal?.date ? dayjs(rehearsal.date).format('YYYY-MM-DDTHH:mm') : '',
-    location: rehearsal?.location || '',
+    title:       rehearsal?.title       || '',
+    date:        rehearsal?.date ? dayjs(rehearsal.date).format('YYYY-MM-DDTHH:mm') : '',
+    location:    rehearsal?.location    || '',
     description: rehearsal?.description || ''
   })
   const [saving, setSaving] = useState(false)
@@ -292,24 +302,31 @@ function RehearsalForm({ rehearsal, onClose, onSaved }) {
   const L = { display: 'block', color: '#94a3b8', fontSize: '11px', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 50, padding: '16px', backdropFilter: 'blur(6px)', overflowY: 'auto' }}>
-      <div style={{ background: 'linear-gradient(135deg, #0d1b2a, #0a1628)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '20px', width: '100%', maxWidth: '500px', animation: 'fadeInUp 0.3s ease forwards', margin: 'auto', overflow: 'hidden' }}>
-        <div style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(6,255,165,0.08))', borderBottom: '1px solid rgba(245,158,11,0.15)', padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#f59e0b', margin: 0 }}>{rehearsal ? 'EDITAR ENSAYO' : 'NUEVO ENSAYO'}</h2>
-          <button onClick={onClose} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontSize: '18px', cursor: 'pointer', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+    <div style={{ minHeight: '100%', background: '#020817', animation: 'fadeInUp 0.3s ease' }}>
+      {/* Header sticky */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 20px', borderBottom: '1px solid rgba(245,158,11,0.15)', background: 'rgba(13,27,42,0.9)', backdropFilter: 'blur(10px)', position: 'sticky', top: 0, zIndex: 10 }}>
+        <button onClick={onClose} style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: '#f59e0b', cursor: 'pointer', fontSize: '14px', padding: '6px 14px', borderRadius: '8px', fontWeight: '700' }}>← VOLVER</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '18px' }}>🎸</span>
+          <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '14px', color: '#f59e0b', margin: 0, letterSpacing: '2px' }}>{rehearsal ? 'EDITAR ENSAYO' : 'NUEVO ENSAYO'}</h2>
         </div>
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      </div>
+
+      {/* Formulario */}
+      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '24px 20px 60px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div><label style={L}>Título *</label><input value={form.title} onChange={e => set('title', e.target.value)} required className="input-field" placeholder="Ej: Ensayo dominical" /></div>
           <div><label style={L}>📅 Fecha y hora *</label><input type="datetime-local" value={form.date} onChange={e => set('date', e.target.value)} required className="input-field" /></div>
           <div><label style={L}>📍 Lugar</label><input value={form.location} onChange={e => set('location', e.target.value)} className="input-field" placeholder="Ej: Salón de música" /></div>
-          <div><label style={L}>📝 Descripción</label><textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3} className="input-field" style={{ resize: 'vertical' }} placeholder="Notas del ensayo..." /></div>
+          <div><label style={L}>📝 Descripción</label><textarea value={form.description} onChange={e => set('description', e.target.value)} rows={6} className="input-field" style={{ resize: 'vertical' }} placeholder="Notas del ensayo..." /></div>
+          <div style={{ height: '1px', background: 'linear-gradient(90deg, transparent, rgba(245,158,11,0.2), transparent)' }} />
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button type="button" onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(100,116,139,0.3)', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>CANCELAR</button>
-            <button onClick={handleSubmit} disabled={saving} style={{ flex: 2, padding: '11px', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', background: saving ? 'rgba(245,158,11,0.1)' : 'linear-gradient(135deg, #f59e0b, #06ffa5)', border: 'none', color: saving ? '#f59e0b' : '#0d1b2a', fontSize: '13px', fontWeight: '700' }}>
-              {saving ? 'GUARDANDO...' : rehearsal ? 'GUARDAR' : 'CREAR ENSAYO'}
+            <button type="button" onClick={onClose} style={{ flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(100,116,139,0.3)', color: '#64748b', fontSize: '13px', fontWeight: '600' }}>CANCELAR</button>
+            <button type="submit" disabled={saving} style={{ flex: 2, padding: '12px', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', background: saving ? 'rgba(245,158,11,0.1)' : 'linear-gradient(135deg, #f59e0b, #06ffa5)', border: 'none', color: saving ? '#f59e0b' : '#0d1b2a', fontSize: '13px', fontWeight: '700' }}>
+              {saving ? 'GUARDANDO...' : rehearsal ? 'GUARDAR CAMBIOS' : 'CREAR ENSAYO'}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   )

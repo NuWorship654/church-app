@@ -1,21 +1,20 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import ServiceForm from '../components/Services/ServiceForm'
 import ServiceDetail from '../components/Services/ServiceDetail'
 import dayjs from 'dayjs'
 import 'dayjs/locale/es'
 dayjs.locale('es')
 
 export default function Services() {
-  const [services,    setServices]    = useState([])
-  const [selected,    setSelected]    = useState(null)
-  const [showForm,    setShowForm]    = useState(false)
-  const [editing,     setEditing]     = useState(null)
-  const [loading,     setLoading]     = useState(true)
-  const [showDetail,  setShowDetail]  = useState(false)
-  const [search,      setSearch]      = useState('')
-  const [view,        setView]        = useState('list')
+  const navigate = useNavigate()
+  const [services,      setServices]      = useState([])
+  const [selected,      setSelected]      = useState(null)
+  const [loading,       setLoading]       = useState(true)
+  const [showDetail,    setShowDetail]    = useState(false)
+  const [search,        setSearch]        = useState('')
+  const [view,          setView]          = useState('list')
   const [calendarMonth, setCalendarMonth] = useState(dayjs())
   const { canEdit, isPastor } = useAuth()
 
@@ -68,7 +67,8 @@ export default function Services() {
             <button onClick={() => setView('list')} style={{ padding: '6px 10px', border: 'none', cursor: 'pointer', background: view === 'list' ? 'rgba(0,212,255,0.15)' : 'transparent', color: view === 'list' ? '#00d4ff' : '#475569', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>☰ LISTA</button>
             <button onClick={() => setView('calendar')} style={{ padding: '6px 10px', border: 'none', cursor: 'pointer', background: view === 'calendar' ? 'rgba(0,212,255,0.15)' : 'transparent', color: view === 'calendar' ? '#00d4ff' : '#475569', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>📅 MES</button>
           </div>
-          {canEdit && <button className="btn-primary" onClick={() => { setEditing(null); setShowForm(true) }}>+ NUEVO</button>}
+          {/* ── CAMBIO: navega a página completa ── */}
+          {canEdit && <button className="btn-primary" onClick={() => navigate('/services/new')}>+ NUEVO</button>}
         </div>
       </div>
 
@@ -76,8 +76,7 @@ export default function Services() {
       {view === 'list' && !showDetail && (
         <div style={{ marginBottom: '14px' }}>
           <input type="text" placeholder="Buscar servicio o lugar..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="input-field" />
+            value={search} onChange={e => setSearch(e.target.value)} className="input-field" />
         </div>
       )}
 
@@ -123,7 +122,6 @@ export default function Services() {
       {/* Vista Lista */}
       {view === 'list' && (
         showDetail && selected ? (
-          /* Detalle del servicio — pantalla completa */
           <div>
             <button onClick={() => { setShowDetail(false); setSelected(null) }} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', background: 'none', border: 'none', color: '#00d4ff', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
               ← VOLVER A SERVICIOS
@@ -131,7 +129,6 @@ export default function Services() {
             <ServiceDetail service={selected} canEdit={canEdit} isPastor={isPastor} onRefresh={fetchServices} />
           </div>
         ) : (
-          /* Lista completa — todo el ancho */
           <div style={{ width: '100%' }}>
             {loading ? (
               <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
@@ -153,7 +150,7 @@ export default function Services() {
                         <ServiceCard key={s.id} service={s} selected={selected}
                           onSelect={sv => { setSelected(sv); setShowDetail(true) }}
                           canEdit={canEdit}
-                          onEdit={() => { setEditing(s); setShowForm(true) }}
+                          onEdit={() => navigate(`/services/${s.id}/edit`)}
                           onDelete={() => handleDelete(s.id)} index={i} />
                       ))}
                     </div>
@@ -167,7 +164,7 @@ export default function Services() {
                         <ServiceCard key={s.id} service={s} selected={selected}
                           onSelect={sv => { setSelected(sv); setShowDetail(true) }}
                           canEdit={canEdit}
-                          onEdit={() => { setEditing(s); setShowForm(true) }}
+                          onEdit={() => navigate(`/services/${s.id}/edit`)}
                           onDelete={() => handleDelete(s.id)} index={i} past />
                       ))}
                     </div>
@@ -177,11 +174,6 @@ export default function Services() {
             )}
           </div>
         )
-      )}
-
-      {showForm && (
-        <ServiceForm service={editing} onClose={() => setShowForm(false)}
-          onSaved={() => { fetchServices(); setShowForm(false) }} />
       )}
     </div>
   )

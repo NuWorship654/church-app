@@ -14,6 +14,7 @@ import Calendar from './pages/Calendar'
 import TeamChat from './pages/TeamChat'
 import DirectorMode from './pages/DirectorMode'
 import SongFormPage from './pages/SongFormPage'
+import ServiceFormPage from './pages/ServiceFormPage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -29,10 +30,7 @@ function PrivateRoute({ children }) {
         borderTop: '3px solid #00d4ff',
         animation: 'spin 0.8s linear infinite'
       }} />
-      <div style={{
-        fontFamily: 'Orbitron, sans-serif',
-        color: '#00d4ff', fontSize: '12px', letterSpacing: '3px'
-      }}>
+      <div style={{ fontFamily: 'Orbitron, sans-serif', color: '#00d4ff', fontSize: '12px', letterSpacing: '3px' }}>
         CARGANDO...
       </div>
     </div>
@@ -47,19 +45,21 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index             element={<Dashboard />} />
-            <Route path="songs"      element={<Songs />} />
-            <Route path="songs/new"      element={<SongFormPage />} />
-            <Route path="songs/:id/edit" element={<SongFormPage />} />
-            <Route path="services"   element={<Services />} />
-            <Route path="rehearsals" element={<Rehearsals />} />
-            <Route path="secuencias" element={<Secuencias />} />
-            <Route path="calendar"   element={<Calendar />} />
-            <Route path="chat"       element={<TeamChat />} />
-            <Route path="director"   element={<DirectorMode />} />
-            <Route path="stats"      element={<Stats />} />
-            <Route path="users"      element={<Users />} />
-            <Route path="profile"    element={<Profile />} />
+            <Route index                    element={<Dashboard />} />
+            <Route path="songs"             element={<Songs />} />
+            <Route path="songs/new"         element={<SongFormPage />} />
+            <Route path="songs/:id/edit"    element={<SongFormPage />} />
+            <Route path="services"          element={<Services />} />
+            <Route path="services/new"      element={<ServiceFormPage />} />
+            <Route path="services/:id/edit" element={<ServiceFormPage />} />
+            <Route path="rehearsals"        element={<Rehearsals />} />
+            <Route path="secuencias"        element={<Secuencias />} />
+            <Route path="calendar"          element={<Calendar />} />
+            <Route path="chat"              element={<TeamChat />} />
+            <Route path="director"          element={<DirectorMode />} />
+            <Route path="stats"             element={<Stats />} />
+            <Route path="users"             element={<Users />} />
+            <Route path="profile"           element={<Profile />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
