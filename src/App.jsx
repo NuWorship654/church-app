@@ -13,6 +13,7 @@ import Secuencias from './pages/Secuencias'
 import Calendar from './pages/Calendar'
 import TeamChat from './pages/TeamChat'
 import DirectorMode from './pages/DirectorMode'
+import SongFormPage from './pages/SongFormPage'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -46,8 +47,10 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index           element={<Dashboard />} />
+            <Route index             element={<Dashboard />} />
             <Route path="songs"      element={<Songs />} />
+            <Route path="songs/new"      element={<SongFormPage />} />
+            <Route path="songs/:id/edit" element={<SongFormPage />} />
             <Route path="services"   element={<Services />} />
             <Route path="rehearsals" element={<Rehearsals />} />
             <Route path="secuencias" element={<Secuencias />} />

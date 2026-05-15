@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import SongViewer from '../components/Songs/SongViewer'
-import SongForm from '../components/Songs/SongForm'
 import { cacheSongs, getCachedSongs } from '../lib/db'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -28,24 +28,21 @@ const TAGS_AVAILABLE = [
 const TAG_MAP = Object.fromEntries(TAGS_AVAILABLE.map(t => [t.id, t]))
 
 export default function Songs() {
-  const [songs,       setSongs]       = useState([])
-  const [favorites,   setFavorites]   = useState([])
-  const [lastUsed,    setLastUsed]    = useState({}) // { songId: { date, count } }
-  const [selected,    setSelected]    = useState(null)
-  const [showForm,    setShowForm]    = useState(false)
-  const [editing,     setEditing]     = useState(null)
-  const [loading,     setLoading]     = useState(true)
-  const [search,      setSearch]      = useState('')
-  const [filterKey,   setFilterKey]   = useState('')
-  const [filterFav,   setFilterFav]   = useState(false)
-  const [filterTags,  setFilterTags]  = useState([]) // tags activos
-  const [sortBy,      setSortBy]      = useState('title')
-  const [sortDir,     setSortDir]     = useState('asc')
-  const [importMode,  setImportMode]  = useState(false)
-  const [importText,  setImportText]  = useState('')
-  const [showViewer,  setShowViewer]  = useState(false)
-  const [isOffline,   setIsOffline]   = useState(false)
-  const [viewMode,    setViewMode]    = useState('list')
+  const navigate = useNavigate()
+  const [songs,         setSongs]         = useState([])
+  const [favorites,     setFavorites]     = useState([])
+  const [lastUsed,      setLastUsed]      = useState({})
+  const [selected,      setSelected]      = useState(null)
+  const [loading,       setLoading]       = useState(true)
+  const [search,        setSearch]        = useState('')
+  const [filterKey,     setFilterKey]     = useState('')
+  const [filterFav,     setFilterFav]     = useState(false)
+  const [filterTags,    setFilterTags]    = useState([])
+  const [sortBy,        setSortBy]        = useState('title')
+  const [sortDir,       setSortDir]       = useState('asc')
+  const [showViewer,    setShowViewer]    = useState(false)
+  const [isOffline,     setIsOffline]     = useState(false)
+  const [viewMode,      setViewMode]      = useState('list')
   const [showTagFilter, setShowTagFilter] = useState(false)
   const { canEdit, user } = useAuth()
 
@@ -80,10 +77,7 @@ export default function Songs() {
       const { data } = await supabase.from('songs_last_used').select('*')
       const map = {}
       for (const row of data || []) {
-        map[row.song_id] = {
-          date:  row.last_used_date,
-          count: row.total_uses
-        }
+        map[row.song_id] = { date: row.last_used_date, count: row.total_uses }
       }
       setLastUsed(map)
     } catch {}
@@ -111,14 +105,6 @@ export default function Songs() {
     await supabase.from('songs').delete().eq('id', id)
     setSongs(prev => prev.filter(s => s.id !== id))
     if (selected?.id === id) { setSelected(null); setShowViewer(false) }
-  }
-
-  const handleImport = async () => {
-    if (!importText.trim()) return
-    const lines = importText.split('\n')
-    const title = lines[0].replace(/^#\s*/, '').trim() || 'Sin título'
-    await supabase.from('songs').insert({ title, chords: importText, created_by: user.id })
-    setImportText(''); setImportMode(false); fetchSongs()
   }
 
   const toggleSort = (field) => {
@@ -173,6 +159,19 @@ export default function Songs() {
   }, {})
   const showGrouped = sortBy === 'title' && !search && filterTags.length === 0
 
+  const lastUsedText = (songId) => {
+    const info = lastUsed[songId]
+    if (!info || !info.date) return null
+    return {
+      text:     dayjs(info.date).fromNow(),
+      count:    info.count,
+      isRecent: dayjs(info.date).isAfter(dayjs().subtract(7, 'day')),
+      isOld:    dayjs(info.date).isBefore(dayjs().subtract(60, 'day'))
+    }
+  }
+
+  const hasActiveFilters = search || filterKey || filterFav || filterTags.length > 0
+
   const SortBtn = ({ field, label }) => (
     <button onClick={() => toggleSort(field)} style={{
       display: 'flex', alignItems: 'center', gap: '3px',
@@ -185,20 +184,6 @@ export default function Songs() {
       {label} <span style={{ fontSize: '9px' }}>{sortBy === field ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
     </button>
   )
-
-  // Última vez cantada — texto relativo
-  const lastUsedText = (songId) => {
-    const info = lastUsed[songId]
-    if (!info || !info.date) return null
-    return {
-      text:  dayjs(info.date).fromNow(),
-      count: info.count,
-      isRecent: dayjs(info.date).isAfter(dayjs().subtract(7, 'day')),
-      isOld:    dayjs(info.date).isBefore(dayjs().subtract(60, 'day'))
-    }
-  }
-
-  const hasActiveFilters = search || filterKey || filterFav || filterTags.length > 0
 
   return (
     <div style={{ animation: 'fadeInUp 0.5s ease forwards', width: '100%', overflowX: 'hidden' }}>
@@ -224,25 +209,13 @@ export default function Songs() {
             <button onClick={() => setViewMode('grid')} style={{ padding: '6px 10px', border: 'none', cursor: 'pointer', background: viewMode === 'grid' ? 'rgba(0,212,255,0.15)' : 'transparent', color: viewMode === 'grid' ? '#00d4ff' : '#475569', fontSize: '13px' }}>⊞</button>
           </div>
           {canEdit && (
-            <>
-              <button onClick={() => setImportMode(!importMode)} style={{ padding: '7px 12px', borderRadius: '8px', cursor: 'pointer', background: importMode ? 'rgba(6,255,165,0.15)' : 'rgba(255,255,255,0.05)', border: '1px solid ' + (importMode ? 'rgba(6,255,165,0.4)' : 'rgba(255,255,255,0.1)'), color: importMode ? '#06ffa5' : '#94a3b8', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>IMPORTAR</button>
-              <button className="btn-primary" onClick={() => { setEditing(null); setShowForm(true) }}>+ NUEVA</button>
-            </>
+            // ── CAMBIO: navega a página completa en lugar de abrir modal ──
+            <button className="btn-primary" onClick={() => navigate('/songs/new')}>
+              + NUEVA
+            </button>
           )}
         </div>
       </div>
-
-      {/* Import */}
-      {importMode && (
-        <div style={{ background: 'rgba(6,255,165,0.05)', border: '1px solid rgba(6,255,165,0.2)', borderRadius: '12px', padding: '14px', marginBottom: '16px' }}>
-          <p style={{ color: '#06ffa5', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 4px' }}>IMPORTAR CANCIÓN</p>
-          <textarea value={importText} onChange={e => setImportText(e.target.value)} rows={6} className="input-field" style={{ fontFamily: 'monospace', fontSize: '13px', resize: 'vertical', marginBottom: '10px' }} placeholder={'Nombre de la cancion\n\n[Verso 1]\nG        Am\nLetra aqui'} />
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={() => { setImportMode(false); setImportText('') }} style={{ padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', background: 'transparent', border: '1px solid rgba(100,116,139,0.4)', color: '#94a3b8', fontSize: '13px' }}>Cancelar</button>
-            <button onClick={handleImport} className="btn-primary" style={{ padding: '8px 20px' }}>Importar</button>
-          </div>
-        </div>
-      )}
 
       {/* Búsqueda + filtros */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
@@ -258,7 +231,6 @@ export default function Songs() {
           <button onClick={() => setFilterFav(!filterFav)} style={{ padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', background: filterFav ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)', border: '1px solid ' + (filterFav ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.1)'), color: filterFav ? '#f59e0b' : '#64748b', fontSize: '16px', flexShrink: 0 }}>
             {filterFav ? '★' : '☆'}
           </button>
-          {/* Botón tags */}
           <button onClick={() => setShowTagFilter(s => !s)} style={{
             padding: '7px 12px', borderRadius: '8px', cursor: 'pointer', flexShrink: 0,
             background: filterTags.length > 0 ? 'rgba(124,58,237,0.2)' : showTagFilter ? 'rgba(124,58,237,0.12)' : 'rgba(255,255,255,0.05)',
@@ -282,7 +254,6 @@ export default function Songs() {
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
               {TAGS_AVAILABLE.map(tag => {
                 const active = filterTags.includes(tag.id)
-                // Contar canciones con este tag
                 const count  = songs.filter(s => (s.tags || []).includes(tag.id)).length
                 if (count === 0) return null
                 return (
@@ -369,7 +340,6 @@ export default function Songs() {
                       {song.original_key || '?'}
                     </div>
                     <p style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: '600', color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</p>
-                    {/* Tags en grid */}
                     {(song.tags || []).length > 0 && (
                       <div style={{ display: 'flex', justifyContent: 'center', gap: '3px', flexWrap: 'wrap', marginBottom: '3px' }}>
                         {(song.tags || []).slice(0, 2).map(tagId => {
@@ -396,7 +366,7 @@ export default function Songs() {
                       <SongRow key={song.id} song={song} selected={selected} favorites={favorites}
                         lastUsed={lastUsedText(song.id)} canEdit={canEdit}
                         onSelect={() => { setSelected(song); setShowViewer(true) }}
-                        onEdit={() => { setEditing(song); setShowForm(true) }}
+                        onEdit={() => navigate(`/songs/${song.id}/edit`)}
                         onDelete={() => handleDelete(song.id)} index={i} />
                     ))}
                   </div>
@@ -406,18 +376,13 @@ export default function Songs() {
                   <SongRow key={song.id} song={song} selected={selected} favorites={favorites}
                     lastUsed={lastUsedText(song.id)} canEdit={canEdit}
                     onSelect={() => { setSelected(song); setShowViewer(true) }}
-                    onEdit={() => { setEditing(song); setShowForm(true) }}
+                    onEdit={() => navigate(`/songs/${song.id}/edit`)}
                     onDelete={() => handleDelete(song.id)} index={i} />
                 ))
               )}
             </div>
           )}
         </div>
-      )}
-
-      {showForm && (
-        <SongForm song={editing} onClose={() => setShowForm(false)}
-          onSaved={() => { fetchSongs(); fetchLastUsed(); setShowForm(false) }} />
       )}
     </div>
   )
@@ -438,25 +403,16 @@ function SongRow({ song, selected, favorites, lastUsed, canEdit, onSelect, onEdi
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Badge tono */}
           <div style={{ width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0, background: isSelected ? 'rgba(0,212,255,0.2)' : 'rgba(124,58,237,0.15)', border: '1px solid ' + (isSelected ? 'rgba(0,212,255,0.5)' : 'rgba(124,58,237,0.3)'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: '700', color: isSelected ? '#00d4ff' : '#a78bfa', fontFamily: 'Orbitron, sans-serif' }}>
             {song.original_key || '?'}
           </div>
-
           <div style={{ minWidth: 0, flex: 1 }}>
-            {/* Título + estrella */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
               {favorites.includes(song.id) && <span style={{ color: '#f59e0b', fontSize: '11px', flexShrink: 0 }}>★</span>}
               <p style={{ margin: 0, fontWeight: '600', color: isSelected ? '#ffffff' : '#e2e8f0', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</p>
             </div>
-
-            {/* BPM + tags + última vez */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              {song.bpm > 0 && (
-                <span style={{ fontSize: '10px', color: '#06ffa5', flexShrink: 0 }}>♩{song.bpm}</span>
-              )}
-
-              {/* Tags */}
+              {song.bpm > 0 && <span style={{ fontSize: '10px', color: '#06ffa5', flexShrink: 0 }}>♩{song.bpm}</span>}
               {(song.tags || []).slice(0, 3).map(tagId => {
                 const tag = TAG_MAP[tagId]
                 if (!tag) return null
@@ -466,20 +422,15 @@ function SongRow({ song, selected, favorites, lastUsed, canEdit, onSelect, onEdi
                   </span>
                 )
               })}
-
-              {/* Última vez cantada */}
               {lastUsed && (
                 <span style={{ fontSize: '9px', color: lastUsed.isOld ? '#f87171' : lastUsed.isRecent ? '#06ffa5' : '#334155', flexShrink: 0 }}>
                   {lastUsed.isRecent ? '● ' : ''}{lastUsed.text}
                 </span>
               )}
-              {!lastUsed && (
-                <span style={{ fontSize: '9px', color: '#1e3a4a', flexShrink: 0 }}>nunca cantada</span>
-              )}
+              {!lastUsed && <span style={{ fontSize: '9px', color: '#1e3a4a', flexShrink: 0 }}>nunca cantada</span>}
             </div>
           </div>
         </div>
-
         {canEdit && (
           <div style={{ display: 'flex', gap: '3px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
             <button onClick={onEdit} style={{ background: 'none', border: 'none', color: '#00d4ff', cursor: 'pointer', fontSize: '13px', padding: '4px 7px', borderRadius: '6px' }}
